@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#7b3f61">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>Repro Bovine</title>
+  <title>Repro Bovine v1.3</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -41,8 +41,8 @@
     </section>
 
     <section id="view-cows" class="view">
-      <div class="searchbox"><span>🔎</span><input id="cowSearch" placeholder="Nom ou numéro de travail" autocomplete="off"></div>
-      <div class="chips"><button class="chip active" data-cow-filter="all">Toutes</button><button class="chip" data-cow-filter="pregnant">Pleines</button><button class="chip" data-cow-filter="watch">À surveiller</button><button class="chip" data-cow-filter="postpartum">Post-vêlage</button></div>
+      <div class="section-head"><div class="searchbox cow-search-main"><span>🔎</span><input id="cowSearch" placeholder="Nom ou numéro de travail" autocomplete="off"></div><button id="addCowBtn" class="primary compact">＋ Vache</button></div>
+      <div class="chips"><button class="chip active" data-cow-filter="all">Toutes</button><button class="chip" data-cow-filter="pregnant">Pleines</button><button class="chip" data-cow-filter="watch">À surveiller</button><button class="chip" data-cow-filter="postpartum">Post-vêlage</button><button class="chip" data-cow-filter="inactive">Sorties</button></div>
       <div id="cowList" class="cards"></div>
     </section>
 
@@ -109,6 +109,17 @@
   </dialog>
 
   <dialog id="cowDialog"><div id="cowDetail"></div></dialog>
+  <dialog id="cowFormDialog"><form method="dialog" id="cowForm"><div class="dialog-head"><h2 id="cowFormTitle">Ajouter une vache</h2><button value="cancel" class="iconbtn">✕</button></div>
+    <input type="hidden" id="cowEditId">
+    <label>Numéro de travail *<input id="cowWorkNumber" required autocomplete="off"></label>
+    <label>Nom<input id="cowName" autocomplete="off"></label>
+    <label>Numéro national / identifiant<input id="cowNationalId" autocomplete="off"></label>
+    <label>Date de naissance<input id="cowBirthDate" type="date"></label>
+    <label>Race<input id="cowBreed" placeholder="Ex. Blonde d’Aquitaine"></label>
+    <label>Date du dernier vêlage<input id="cowLastCalving" type="date"></label>
+    <label>Rang de vêlage<input id="cowCalvingCount" type="number" min="0" step="1"></label>
+    <button class="primary wide" type="submit">Enregistrer</button>
+  </form></dialog>
   <dialog id="bullDialog"><form method="dialog" id="bullForm"><div class="dialog-head"><h2>Ajouter un taureau</h2><button value="cancel" class="iconbtn">✕</button></div><label>Nom<input id="bullName" required></label><label>Numéro<input id="bullNumber"></label><button class="primary wide" type="submit">Ajouter</button></form></dialog>
 
   <script src="initial-data.js"></script>

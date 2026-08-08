@@ -7,7 +7,7 @@ let calMode='week', calDate=today(), cowFilter='all';
 
 function normalizeState(x){
   x=x||{};
-  x.cows=x.cows||[]; x.males=x.males||[]; x.aiBulls=x.aiBulls||[];
+  x.cows=(x.cows||[]).map(c=>({...c,active:c.active!==false,source:c.source||'csv',events:c.events||[]})); x.males=x.males||[]; x.aiBulls=x.aiBulls||[];
   x.settings={...DEFAULTS,...(x.settings||{})};
   x.notifications={...NOTIF_DEFAULTS,...(x.notifications||{})};
   x.meta=x.meta||{source:window.INITIAL_HERD.source,importedAt:window.INITIAL_HERD.importedAt};
@@ -60,7 +60,7 @@ function reproductiveStatus(c){
 
 function buildAlerts(){
   const out=[], S=state.settings, now=dateISO(today());
-  for(const c of state.cows){
+  for(const c of state.cows.filter(c=>c.active!==false)){
     const ev=events(c), svc=lastService(c), calv=lastCalving(c);
     if(svc){
       const later=ev.filter(e=>e.date>svc.date);
@@ -105,7 +105,7 @@ function renderHome(){
   const now=dateISO(today()), weekEnd=dateISO(addDays(today(),7));
   const td=alertsForDay(now), wk=alertsBetween(dateISO(addDays(today(),1)),weekEnd);
   $('#countToday').textContent=td.length; $('#countWeek').textContent=wk.length;
-  $('#countPregnant').textContent=state.cows.filter(c=>['pregnant','presumed'].includes(reproductiveStatus(c).key)).length;
+  $('#countPregnant').textContent=state.cows.filter(c=>c.active!==false&&['pregnant','presumed'].includes(reproductiveStatus(c).key)).length;
   $('#todayAlerts').innerHTML=td.length?td.map(alertHTML).join(''):`<div class="empty">✅ Rien de particulier à surveiller aujourd’hui.</div>`;
   $('#weekAlerts').innerHTML=wk.length?wk.slice(0,20).map(alertHTML).join(''):`<div class="empty">Aucune échéance dans les 7 prochains jours.</div>`;
   bindCowOpen();
@@ -115,24 +115,42 @@ function alertHTML(a){return `<button class="card alert-card open-cow" data-id="
 function renderCows(){
   const q=norm($('#cowSearch')?.value||'');
   let list=state.cows.filter(c=>!q||norm(c.name).includes(q)||norm(c.workNumber).includes(q)||norm(c.id).includes(q));
+  if(cowFilter==='inactive')list=list.filter(c=>c.active===false); else list=list.filter(c=>c.active!==false);
   if(cowFilter==='pregnant')list=list.filter(c=>['pregnant','presumed'].includes(reproductiveStatus(c).key));
   if(cowFilter==='watch')list=list.filter(c=>['watch'].includes(reproductiveStatus(c).key)||alertsForDay(dateISO(today())).some(a=>a.cow.id===c.id));
   if(cowFilter==='postpartum')list=list.filter(c=>reproductiveStatus(c).key==='postpartum');
   list.sort((a,b)=>(a.workNumber||'').localeCompare(b.workNumber||'',undefined,{numeric:true}));
-  $('#cowList').innerHTML=list.length?list.map(c=>{const s=reproductiveStatus(c), lc=lastCalving(c); return `<button class="card cow-card open-cow" data-id="${esc(c.id)}"><span><span class="cow-name">${esc(c.name||'Sans nom')} · ${esc(c.workNumber)}</span><span class="cow-sub">${ageText(c.birthDate)}${lc?` • dernier vêlage ${frDate(lc)}`:''}${c.calvingCount?` • rang ${c.calvingCount}`:''}</span></span><span class="badge ${s.cls}">${esc(s.label)}</span></button>`}).join(''):`<div class="empty">Aucune vache trouvée.</div>`;
+  $('#cowList').innerHTML=list.length?list.map(c=>{const s=reproductiveStatus(c), lc=lastCalving(c); return `<button class="card cow-card open-cow ${c.active===false?'inactive-card':''}" data-id="${esc(c.id)}"><span><span class="cow-name">${esc(c.name||'Sans nom')} · ${esc(c.workNumber)}</span><span class="cow-sub">${ageText(c.birthDate)}${lc?` • dernier vêlage ${frDate(lc)}`:''}${c.calvingCount?` • rang ${c.calvingCount}`:''}</span></span><span class="badge ${c.active===false?'neutral':s.cls}">${c.active===false?'Sortie':esc(s.label)}</span></button>`}).join(''):`<div class="empty">Aucune vache trouvée.</div>`;
   bindCowOpen();
 }
 function bindCowOpen(){ $$('.open-cow').forEach(b=>b.onclick=()=>openCow(b.dataset.id)) }
 function openCow(id){
   const c=state.cows.find(x=>x.id===id); if(!c)return; const s=reproductiveStatus(c), ev=events(c).slice().reverse(); const svc=lastService(c);
-  let calc=''; if(['pregnant','presumed','watch'].includes(s.key)&&svc){const term=dateISO(addDays(svc.date,state.settings.term)), remain=diffDays(term,dateISO(today())); calc=`<div class="card"><strong>${s.key==='pregnant'?'Pleine':'Supposée pleine / suivie'} depuis ${s.days} jours</strong><div class="cow-sub">Terme théorique : ${frDate(term)} • ${remain>=0?remain+' jours restants':Math.abs(remain)+' jours après terme'}</div></div>`}
-  $('#cowDetail').innerHTML=`<div class="dialog-head"><div><h2>${esc(c.name||'Sans nom')} · ${esc(c.workNumber)}</h2><div class="muted">${esc(c.id)} • ${ageText(c.birthDate)}</div></div><button class="iconbtn" id="closeCow">✕</button></div>
-  <p><span class="badge ${s.cls}">${esc(s.label)}</span></p>${calc}
-  <div class="card"><strong>Repères</strong><div class="cow-sub">Dernier vêlage : ${frDate(lastCalving(c))} • Rang retrouvé : ${c.calvingCount||'—'}</div></div>
-  <button class="primary wide" id="addForCow">＋ Ajouter un événement</button>
+  let calc=''; if(c.active!==false&&['pregnant','presumed','watch'].includes(s.key)&&svc){const term=dateISO(addDays(svc.date,state.settings.term)), remain=diffDays(term,dateISO(today())); calc=`<div class="card"><strong>${s.key==='pregnant'?'Pleine':'Supposée pleine / suivie'} depuis ${s.days} jours</strong><div class="cow-sub">Terme théorique : ${frDate(term)} • ${remain>=0?remain+' jours restants':Math.abs(remain)+' jours après terme'}</div></div>`}
+  $('#cowDetail').innerHTML=`<div class="dialog-head"><div><h2>${esc(c.name||'Sans nom')} · ${esc(c.workNumber)}</h2><div class="muted">${esc(c.id)} • ${ageText(c.birthDate)}${c.source==='manual'?' • ajout manuel':''}</div></div><button class="iconbtn" id="closeCow">✕</button></div>
+  <p><span class="badge ${c.active===false?'neutral':s.cls}">${c.active===false?'Sortie du troupeau':esc(s.label)}</span></p>${calc}
+  <div class="card"><strong>Repères</strong><div class="cow-sub">Dernier vêlage : ${frDate(lastCalving(c))} • Rang retrouvé : ${c.calvingCount||'—'}${c.exitDate?' • sortie '+frDate(c.exitDate):''}${c.exitReason?' • '+esc(c.exitReason):''}</div></div>
+  <div class="cow-actions"><button class="ghost" id="editCow">✏️ Modifier la fiche</button>${c.active===false?'<button class="primary" id="reactivateCow">↩️ Réintégrer au troupeau</button>':'<button class="danger-outline" id="exitCow">Sortir du troupeau</button>'}</div>
+  ${c.active!==false?'<button class="primary wide" id="addForCow">＋ Ajouter un événement</button>':''}
   <h3>Historique</h3><div class="timeline">${ev.length?ev.map(e=>`<div class="timeline-item"><strong>${eventLabel(e)}</strong><div class="cow-sub">${frDate(e.date)}${e.bull?` • ${esc(e.bull)}`:''}${e.note?` • ${esc(e.note)}`:''}</div></div>`).join(''):`<div class="muted">Aucun événement saisi dans l’application.</div>`}</div>`;
-  $('#closeCow').onclick=()=>$('#cowDialog').close(); $('#addForCow').onclick=()=>{ $('#cowDialog').close(); openEvent(c.id)}; $('#cowDialog').showModal();
+  $('#closeCow').onclick=()=>$('#cowDialog').close();
+  $('#editCow').onclick=()=>{ $('#cowDialog').close(); openCowForm(c.id) };
+  if(c.active!==false){ $('#addForCow').onclick=()=>{ $('#cowDialog').close(); openEvent(c.id)}; $('#exitCow').onclick=()=>exitCow(c.id) }
+  else $('#reactivateCow').onclick=()=>{c.active=true;c.exitDate='';c.exitReason='';c.exitOrigin='';save();$('#cowDialog').close();};
+  $('#cowDialog').showModal();
 }
+function openCowForm(id=''){
+ const c=id?state.cows.find(x=>x.id===id):null; $('#cowForm').reset(); $('#cowEditId').value=c?.id||''; $('#cowFormTitle').textContent=c?'Modifier la vache':'Ajouter une vache';
+ $('#cowWorkNumber').value=c?.workNumber||''; $('#cowName').value=c?.name||''; $('#cowNationalId').value=c?.id?.startsWith('manual-')?'':(c?.id||''); $('#cowBirthDate').value=c?.birthDate||''; $('#cowBreed').value=c?.breed||''; $('#cowLastCalving').value=c?.lastCalving||''; $('#cowCalvingCount').value=c?.calvingCount||''; $('#cowFormDialog').showModal();
+}
+function saveCowForm(e){e.preventDefault(); const editId=$('#cowEditId').value, national=$('#cowNationalId').value.trim(), work=$('#cowWorkNumber').value.trim(); if(!work){alert('Le numéro de travail est obligatoire.');return}
+ let c=editId?state.cows.find(x=>x.id===editId):null; const newId=national||c?.id||('manual-'+uid());
+ if(!c && state.cows.some(x=>x.active!==false&&(x.id===newId||x.workNumber===work))){alert('Une vache active avec cet identifiant ou ce numéro de travail existe déjà.');return}
+ if(c && newId!==c.id && state.cows.some(x=>x!==c&&x.id===newId)){alert('Cet identifiant existe déjà.');return}
+ const data={id:newId,workNumber:work,name:$('#cowName').value.trim(),birthDate:$('#cowBirthDate').value,breed:$('#cowBreed').value.trim(),lastCalving:$('#cowLastCalving').value,calvingCount:Math.max(0,Number($('#cowCalvingCount').value)||0)};
+ if(c){Object.assign(c,data)} else state.cows.push({...data,active:true,source:'manual',events:[]}); save(); $('#cowFormDialog').close();
+}
+function exitCow(id){const c=state.cows.find(x=>x.id===id);if(!c)return; const reason=prompt('Motif de sortie (facultatif) : vendue, réforme, morte, autre…',''); if(reason===null)return; const d=prompt('Date de sortie (AAAA-MM-JJ) :',dateISO(today())); if(d===null)return; c.active=false;c.exitDate=/^\d{4}-\d{2}-\d{2}$/.test(d)?d:dateISO(today());c.exitReason=reason.trim();c.exitOrigin='manual';save();$('#cowDialog').close();}
 function eventLabel(e){return ({heat:'Chaleur observée',service:e.mode==='ai'?'Insémination artificielle':'Saillie naturelle',pregnant:'Gestation confirmée',not_pregnant:'Diagnostic négatif',calving:'Vêlage'})[e.type]||e.type}
 
 function renderBulls(){
@@ -164,7 +182,7 @@ function renderSettings(){
  updateNotifStatus();
  $('#enableNotifBtn').onclick=requestNotifications;
  $('#testNotifBtn').onclick=()=>sendDailyNotification(true);
- $('#dataInfo').textContent=`Base actuelle : ${state.cows.length} vaches • ${state.males.length} mâles • source ${state.meta?.source||'locale'}`;
+ $('#dataInfo').textContent=`Base actuelle : ${state.cows.filter(c=>c.active!==false).length} vaches présentes • ${state.cows.filter(c=>c.active===false).length} sorties • ${state.males.length} mâles • source ${state.meta?.source||'locale'}`;
 }
 
 function renderCalendar(){
@@ -200,9 +218,18 @@ function dmyToIso(s){const m=(s||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); retur
 function importHerdCSV(text,name){
  const rows=parseCSV(text); if(rows.length<2)throw Error('CSV vide'); const head=rows[0].map(csvClean); const idx=n=>head.indexOf(n); const need=['Identifiant bovin','Numéro travail','Date naissance','Sexe','Nom','Numéro mère','Date sortie']; if(need.some(n=>idx(n)<0))throw Error('Colonnes GDS attendues non trouvées');
  const records=rows.slice(1).map(r=>Object.fromEntries(head.map((h,i)=>[h,csvClean(r[i]||'')]))); const births={}; records.forEach(r=>{if(r['Numéro mère']&&r['Date naissance']){(births[r['Numéro mère']]??=[]).push(dmyToIso(r['Date naissance']))}}); Object.values(births).forEach(a=>a.sort());
- const existing=new Map(state.cows.map(c=>[c.id,c])); const active=records.filter(r=>!r['Date sortie']); const cows=active.filter(r=>r.Sexe==='F').map(r=>{const old=existing.get(r['Identifiant bovin']), b=(births[r['Identifiant bovin']]||[]).filter(Boolean); return {id:r['Identifiant bovin'],workNumber:r['Numéro travail'],name:r.Nom,birthDate:dmyToIso(r['Date naissance']),breed:r['Type racial']||'',lastCalving:old?.lastCalving||b.at(-1)||'',calvingCount:Math.max(old?.calvingCount||0,b.length),events:old?.events||[]}});
- const oldM=new Map(state.males.map(b=>[b.id,b])); const males=active.filter(r=>r.Sexe==='M').map(r=>({id:r['Identifiant bovin'],workNumber:r['Numéro travail'],name:r.Nom,birthDate:dmyToIso(r['Date naissance']),activeBreeder:oldM.get(r['Identifiant bovin'])?.activeBreeder||false}));
- state.cows=cows;state.males=males;state.meta={source:name,importedAt:dateISO(today())};save();
+ let added=0,updated=0,exited=0,manualKept=state.cows.filter(c=>c.source==='manual').length;
+ const byId=new Map(state.cows.map(c=>[c.id,c]));
+ for(const r of records.filter(r=>r.Sexe==='F')){
+   const rid=r['Identifiant bovin'], work=r['Numéro travail'], birth=dmyToIso(r['Date naissance']), csvExit=dmyToIso(r['Date sortie']);
+   let c=byId.get(rid);
+   if(!c){ c=state.cows.find(x=>x.source==='manual'&&x.workNumber===work&&(!x.birthDate||!birth||x.birthDate===birth)); if(c){byId.delete(c.id); c.id=rid; c.source='csv'; byId.set(rid,c);} }
+   const b=(births[rid]||[]).filter(Boolean), histLast=b.at(-1)||'';
+   if(c){ c.workNumber=work||c.workNumber;c.name=r.Nom||c.name;c.birthDate=birth||c.birthDate;c.breed=r['Type racial']||c.breed||'';c.lastCalving=[c.lastCalving,histLast].filter(Boolean).sort().at(-1)||'';c.calvingCount=Math.max(c.calvingCount||0,b.length);c.source='csv'; if(csvExit){if(c.active!==false)exited++;c.active=false;c.exitDate=csvExit;c.exitReason=c.exitReason||'Sortie indiquée dans le CSV';c.exitOrigin='csv'} else if(c.exitOrigin!=='manual'){c.active=true;c.exitDate='';c.exitReason='';c.exitOrigin=''}; updated++;
+   } else {state.cows.push({id:rid,workNumber:work,name:r.Nom,birthDate:birth,breed:r['Type racial']||'',lastCalving:histLast,calvingCount:b.length,events:[],active:!csvExit,exitDate:csvExit,exitReason:csvExit?'Sortie indiquée dans le CSV':'',exitOrigin:csvExit?'csv':'',source:'csv'});added++;}
+ }
+ const oldM=new Map(state.males.map(b=>[b.id,b])); state.males=records.filter(r=>r.Sexe==='M'&&!r['Date sortie']).map(r=>({id:r['Identifiant bovin'],workNumber:r['Numéro travail'],name:r.Nom,birthDate:dmyToIso(r['Date naissance']),activeBreeder:oldM.get(r['Identifiant bovin'])?.activeBreeder||false}));
+ state.meta={source:name,importedAt:dateISO(today()),lastImport:{added,updated,exited,manualKept}};save(); return {added,updated,exited,manualKept};
 }
 
 function exportBackup(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`repro-bovine-sauvegarde-${dateISO(today())}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
@@ -261,12 +288,12 @@ function switchView(v){$$('.view').forEach(x=>x.classList.remove('active')); $(`
 document.addEventListener('DOMContentLoaded',()=>{
  $('#todayLabel').textContent=today().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
  $$('.bottomnav button').forEach(b=>b.onclick=()=>switchView(b.dataset.view)); $('#quickAddBtn').onclick=()=>openEvent();
- $('#cowSearch').oninput=renderCows; $$('.chip').forEach(b=>b.onclick=()=>{$$('.chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');cowFilter=b.dataset.cowFilter;renderCows()});
- $('#eventCowSearch').oninput=()=>{const q=norm($('#eventCowSearch').value); if(q.length<1){$('#eventCowMatches').innerHTML='';return} const list=state.cows.filter(c=>norm(c.name).includes(q)||norm(c.workNumber).includes(q)).slice(0,8); $('#eventCowMatches').innerHTML=list.map(c=>`<button type="button" class="match" data-pick="${esc(c.id)}"><strong>${esc(c.name||'Sans nom')} · ${esc(c.workNumber)}</strong><div class="cow-sub">${ageText(c.birthDate)}</div></button>`).join(''); $$('[data-pick]').forEach(b=>b.onclick=()=>selectEventCow(state.cows.find(c=>c.id===b.dataset.pick)))};
+ $('#cowSearch').oninput=renderCows; $('#addCowBtn').onclick=()=>openCowForm(); $('#cowForm').onsubmit=saveCowForm; $$('.chip').forEach(b=>b.onclick=()=>{$$('.chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');cowFilter=b.dataset.cowFilter;renderCows()});
+ $('#eventCowSearch').oninput=()=>{const q=norm($('#eventCowSearch').value); if(q.length<1){$('#eventCowMatches').innerHTML='';return} const list=state.cows.filter(c=>c.active!==false&&(norm(c.name).includes(q)||norm(c.workNumber).includes(q))).slice(0,8); $('#eventCowMatches').innerHTML=list.map(c=>`<button type="button" class="match" data-pick="${esc(c.id)}"><strong>${esc(c.name||'Sans nom')} · ${esc(c.workNumber)}</strong><div class="cow-sub">${ageText(c.birthDate)}</div></button>`).join(''); $$('[data-pick]').forEach(b=>b.onclick=()=>selectEventCow(state.cows.find(c=>c.id===b.dataset.pick)))};
  $('#eventType').onchange=updateServiceFields; $('#serviceMode').onchange=updateServiceFields; $('#eventForm').onsubmit=addEventFromForm;
  $('#addBullBtn').onclick=()=>$('#bullDialog').showModal(); $('#bullForm').onsubmit=e=>{e.preventDefault();state.males.push({id:'manual-'+uid(),name:$('#bullName').value.trim(),workNumber:$('#bullNumber').value.trim(),birthDate:'',activeBreeder:true});save();$('#bullDialog').close();$('#bullForm').reset()};
  $('#saveSettingsBtn').onclick=()=>{Object.keys(DEFAULTS).forEach(k=>state.settings[k]=Math.max(0,Number($(`#set-${k}`).value)||0)); state.notifications={...NOTIF_DEFAULTS,...state.notifications,enabled:$('#notif-enabled')?.checked??false,time:$('#notif-time')?.value||'07:00',heatReturn:$('#notif-heatReturn')?.checked??true,pregCheck:$('#notif-pregCheck')?.checked??true,precalving:$('#notif-precalving')?.checked??true,term:$('#notif-term')?.checked??true,postpartum:$('#notif-postpartum')?.checked??true}; save();alert('Réglages enregistrés.')}; $('#resetSettingsBtn').onclick=()=>{state.settings={...DEFAULTS};state.notifications={...NOTIF_DEFAULTS};save()};
- $('#csvInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{importHerdCSV(await f.text(),f.name);alert(`Import terminé : ${state.cows.length} vaches présentes.`)}catch(err){alert('Import impossible : '+err.message)}e.target.value=''};
+ $('#csvInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const r=importHerdCSV(await f.text(),f.name);alert(`Fusion CSV terminée.\n\n${r.added} nouvelle(s) vache(s)\n${r.updated} fiche(s) reconnue(s) et mise(s) à jour\n${r.exited} sortie(s) détectée(s)\n${r.manualKept} vache(s) ajoutée(s) manuellement conservée(s)\n\nLes événements repro saisis dans l’application ont été conservés.`)}catch(err){alert('Import impossible : '+err.message)}e.target.value=''};
  $('#exportBtn').onclick=exportBackup; $('#restoreInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!x.cows||!x.settings)throw Error('format incorrect');state=normalizeState(x);save();alert('Sauvegarde restaurée.')}catch(err){alert('Restauration impossible : '+err.message)}e.target.value=''};
  $('#notifyBtn').onclick=requestNotifications;
  $$('#calendarMode button').forEach(b=>b.onclick=()=>{$$('#calendarMode button').forEach(x=>x.classList.remove('active'));b.classList.add('active');calMode=b.dataset.mode;renderCalendar()});

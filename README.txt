@@ -1,3 +1,19 @@
+REPRO BOVINE — V1.3
+
+NOUVEAUTÉS V1.3
+- Ajout manuel d’une vache depuis l’onglet Vaches.
+- Modification de la fiche : n° travail, nom, identifiant national, naissance, race, dernier vêlage et rang.
+- Sortie du troupeau avec date et motif facultatif.
+- Rubrique Sorties : les vaches restent consultables mais ne génèrent plus d’alertes.
+- Réintégration en un clic.
+- Import CSV en FUSION : les chaleurs, IA/saillies, diagnostics, vêlages et notes saisis dans l’application sont conservés.
+- Les vaches ajoutées manuellement sont conservées lors d’un réimport CSV.
+- Une sortie manuelle n’est pas annulée automatiquement par un CSV qui ne porte pas de date de sortie.
+- Résumé affiché après import CSV (nouvelles, reconnues/mises à jour, sorties).
+
+IMPORTANT
+Avant une grosse mise à jour du troupeau, l’export JSON reste conseillé comme sauvegarde de sécurité.
+
 REPRO BOVINE — V1.0
 
 Application web/PWA indépendante de suivi de reproduction bovine.
