@@ -1,13 +1,22 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const STORE='reproBovineV1';
 const DEFAULTS={heatWatchStart:18,heatWatchEnd:24,presumedPregnant:25,pregCheck:35,preCalving:285,term:295,postpartumStart:30,postpartumWarn:45,postpartumLate:60};
+const NOTIF_DEFAULTS={enabled:false,time:'07:00',heatReturn:true,pregCheck:true,precalving:true,term:true,postpartum:true};
 let state=loadState();
 let calMode='week', calDate=today(), cowFilter='all';
 
+function normalizeState(x){
+  x=x||{};
+  x.cows=x.cows||[]; x.males=x.males||[]; x.aiBulls=x.aiBulls||[];
+  x.settings={...DEFAULTS,...(x.settings||{})};
+  x.notifications={...NOTIF_DEFAULTS,...(x.notifications||{})};
+  x.meta=x.meta||{source:window.INITIAL_HERD.source,importedAt:window.INITIAL_HERD.importedAt};
+  return x;
+}
 function loadState(){
   const raw=localStorage.getItem(STORE);
-  if(raw){try{return JSON.parse(raw)}catch(e){}}
-  return {cows:window.INITIAL_HERD.cows||[],males:window.INITIAL_HERD.males||[],aiBulls:[],settings:{...DEFAULTS},meta:{source:window.INITIAL_HERD.source,importedAt:window.INITIAL_HERD.importedAt}};
+  if(raw){try{return normalizeState(JSON.parse(raw))}catch(e){}}
+  return normalizeState({cows:window.INITIAL_HERD.cows||[],males:window.INITIAL_HERD.males||[],aiBulls:[],settings:{...DEFAULTS},notifications:{...NOTIF_DEFAULTS},meta:{source:window.INITIAL_HERD.source,importedAt:window.INITIAL_HERD.importedAt}});
 }
 function save(){localStorage.setItem(STORE,JSON.stringify(state)); renderAll()}
 function today(){const d=new Date(); d.setHours(12,0,0,0); return d}
@@ -137,6 +146,24 @@ function populateNaturalBulls(){const sel=$('#naturalBull'); if(!sel)return; con
 function renderSettings(){
  const defs=[['heatWatchStart','Début surveillance retour chaleur','J+ après IA/saillie'],['heatWatchEnd','Fin surveillance retour chaleur','J+ après IA/saillie'],['presumedPregnant','Supposée pleine à partir de','J+ sans retour enregistré'],['pregCheck','Rappel diagnostic de gestation','J+ après IA/saillie'],['preCalving','Alerte pré-vêlage','J+ après IA/saillie'],['term','Terme théorique','J+ après IA/saillie'],['postpartumStart','Début surveillance post-vêlage','J+ après vêlage'],['postpartumWarn','Alerte post-vêlage renforcée','J+ après vêlage'],['postpartumLate','Alerte absence de chaleur','J+ après vêlage']];
  $('#settingsForm').innerHTML=defs.map(([k,l,d])=>`<div class="setting"><label for="set-${k}">${l}</label><p>${d}</p><input id="set-${k}" type="number" min="0" value="${state.settings[k]}"></div>`).join('');
+ const n=state.notifications||NOTIF_DEFAULTS;
+ $('#notificationSettings').innerHTML=`
+   <div class="notification-panel">
+    <div class="setting-row"><div><strong>Récap quotidien</strong><p>Une seule notification regroupée pour éviter les alertes en rafale.</p></div><label class="toggleline"><input id="notif-enabled" type="checkbox" ${n.enabled?'checked':''}> Actif</label></div>
+    <div class="setting-row"><div><strong>Heure souhaitée</strong><p>Utilisée lorsque l’application est active ou reprise. Le push serveur sera nécessaire pour une heure garantie en arrière-plan.</p></div><input id="notif-time" type="time" value="${esc(n.time||'07:00')}"></div>
+    <div class="notif-types">
+      <label><input id="notif-heatReturn" type="checkbox" ${n.heatReturn?'checked':''}> 🔁 Retours en chaleur</label>
+      <label><input id="notif-pregCheck" type="checkbox" ${n.pregCheck?'checked':''}> 🩺 Diagnostics de gestation</label>
+      <label><input id="notif-precalving" type="checkbox" ${n.precalving?'checked':''}> 🍼 Pré-vêlage</label>
+      <label><input id="notif-term" type="checkbox" ${n.term?'checked':''}> ⚠️ Termes atteints</label>
+      <label><input id="notif-postpartum" type="checkbox" ${n.postpartum?'checked':''}> 👀 Suivi post-vêlage</label>
+    </div>
+    <div class="notif-actions"><button type="button" id="enableNotifBtn" class="primary compact">🔔 Autoriser</button><button type="button" id="testNotifBtn" class="ghost compact">Envoyer un test</button></div>
+    <p id="notifStatus" class="muted small"></p>
+   </div>`;
+ updateNotifStatus();
+ $('#enableNotifBtn').onclick=requestNotifications;
+ $('#testNotifBtn').onclick=()=>sendDailyNotification(true);
  $('#dataInfo').textContent=`Base actuelle : ${state.cows.length} vaches • ${state.males.length} mâles • source ${state.meta?.source||'locale'}`;
 }
 
@@ -179,9 +206,53 @@ function importHerdCSV(text,name){
 }
 
 function exportBackup(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`repro-bovine-sauvegarde-${dateISO(today())}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
+function notificationTypeEnabled(a){
+ const n=state.notifications||NOTIF_DEFAULTS;
+ if(a.type==='heat_return')return n.heatReturn;
+ if(a.type==='preg_check')return n.pregCheck;
+ if(a.type==='precalving')return n.precalving;
+ if(a.type==='term')return n.term;
+ if(['post_start','post_warn','post_late'].includes(a.type))return n.postpartum;
+ return true;
+}
+function notificationAlerts(day=dateISO(today())){return alertsForDay(day).filter(notificationTypeEnabled)}
+function notificationSummary(day=dateISO(today())){
+ const a=notificationAlerts(day), groups={heat_return:0,preg_check:0,precalving:0,term:0,post:0};
+ a.forEach(x=>{if(['post_start','post_warn','post_late'].includes(x.type))groups.post++;else if(groups[x.type]!==undefined)groups[x.type]++});
+ const parts=[]; if(groups.heat_return)parts.push(`${groups.heat_return} retour(s) chaleur`); if(groups.preg_check)parts.push(`${groups.preg_check} diagnostic(s)`); if(groups.precalving)parts.push(`${groups.precalving} pré-vêlage`); if(groups.term)parts.push(`${groups.term} terme(s)`); if(groups.post)parts.push(`${groups.post} post-vêlage`);
+ const names=[...new Set(a.map(x=>(x.cow.name||x.cow.workNumber)+' · '+x.cow.workNumber))].slice(0,3);
+ return {count:a.length,body:a.length?`${parts.join(' • ')}${names.length?' — '+names.join(', ')+(a.length>3?'…':''):''}`:'Aucune surveillance particulière aujourd’hui.'};
+}
+async function showNotification(title,body,tag='repro-bovine-daily'){
+ if(!('Notification' in window)||Notification.permission!=='granted')return false;
+ try{
+  if('serviceWorker'in navigator){const reg=await navigator.serviceWorker.ready; await reg.showNotification(title,{body,icon:'icons/icon-192.png',badge:'icons/icon-192.png',tag,renotify:true,data:{url:'./'}});return true}
+  new Notification(title,{body,icon:'icons/icon-192.png',tag}); return true;
+ }catch(e){try{new Notification(title,{body,icon:'icons/icon-192.png'});return true}catch(_){return false}}
+}
+function updateNotifStatus(){
+ const el=$('#notifStatus'); if(!el)return;
+ if(!('Notification'in window)){el.textContent='Notifications non prises en charge par ce navigateur.';return}
+ const p=Notification.permission; el.textContent=p==='granted'?'✅ Notifications autorisées sur cet appareil.':p==='denied'?'⛔ Notifications refusées dans les réglages du navigateur/appareil.':'🔔 Autorisation non encore accordée.';
+}
 async function requestNotifications(){
  if(!('Notification'in window)){alert('Les notifications ne sont pas disponibles dans ce navigateur. Les alertes restent visibles dans l’application.');return}
- const p=await Notification.requestPermission(); if(p==='granted'){const n=alertsForDay(dateISO(today())).length; new Notification('Repro Bovine',{body:n?`${n} surveillance(s) prévue(s) aujourd’hui.`:'Aucune surveillance particulière aujourd’hui.'})}
+ const p=await Notification.requestPermission();
+ if(p==='granted'){state.notifications.enabled=true;save(); await showNotification('Repro Bovine','Notifications activées. Les alertes du jour seront regroupées dans un récap.','repro-bovine-setup')}
+ else updateNotifStatus();
+}
+async function sendDailyNotification(force=false){
+ const prefs=state.notifications||NOTIF_DEFAULTS;
+ if(!force&&!prefs.enabled)return;
+ if(!('Notification'in window)||Notification.permission!=='granted'){if(force)await requestNotifications();return}
+ const day=dateISO(today()), key='reproNotifV12-'+day; if(!force&&localStorage.getItem(key))return;
+ const summary=notificationSummary(day); await showNotification(force?'Test Repro Bovine':'Repro Bovine • Aujourd’hui',summary.body,force?'repro-bovine-test':'repro-bovine-daily');
+ if(!force)localStorage.setItem(key,'1');
+}
+function maybeDailyNotification(){
+ const prefs=state.notifications||NOTIF_DEFAULTS; if(!prefs.enabled)return;
+ const now=new Date(), hhmm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+ if(hhmm>=(prefs.time||'07:00'))sendDailyNotification(false);
 }
 
 function renderAll(){renderHome();renderCows();renderBulls();renderSettings();renderCalendar()}
@@ -194,12 +265,15 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#eventCowSearch').oninput=()=>{const q=norm($('#eventCowSearch').value); if(q.length<1){$('#eventCowMatches').innerHTML='';return} const list=state.cows.filter(c=>norm(c.name).includes(q)||norm(c.workNumber).includes(q)).slice(0,8); $('#eventCowMatches').innerHTML=list.map(c=>`<button type="button" class="match" data-pick="${esc(c.id)}"><strong>${esc(c.name||'Sans nom')} · ${esc(c.workNumber)}</strong><div class="cow-sub">${ageText(c.birthDate)}</div></button>`).join(''); $$('[data-pick]').forEach(b=>b.onclick=()=>selectEventCow(state.cows.find(c=>c.id===b.dataset.pick)))};
  $('#eventType').onchange=updateServiceFields; $('#serviceMode').onchange=updateServiceFields; $('#eventForm').onsubmit=addEventFromForm;
  $('#addBullBtn').onclick=()=>$('#bullDialog').showModal(); $('#bullForm').onsubmit=e=>{e.preventDefault();state.males.push({id:'manual-'+uid(),name:$('#bullName').value.trim(),workNumber:$('#bullNumber').value.trim(),birthDate:'',activeBreeder:true});save();$('#bullDialog').close();$('#bullForm').reset()};
- $('#saveSettingsBtn').onclick=()=>{Object.keys(DEFAULTS).forEach(k=>state.settings[k]=Math.max(0,Number($(`#set-${k}`).value)||0));save();alert('Réglages enregistrés.')}; $('#resetSettingsBtn').onclick=()=>{state.settings={...DEFAULTS};save()};
+ $('#saveSettingsBtn').onclick=()=>{Object.keys(DEFAULTS).forEach(k=>state.settings[k]=Math.max(0,Number($(`#set-${k}`).value)||0)); state.notifications={...NOTIF_DEFAULTS,...state.notifications,enabled:$('#notif-enabled')?.checked??false,time:$('#notif-time')?.value||'07:00',heatReturn:$('#notif-heatReturn')?.checked??true,pregCheck:$('#notif-pregCheck')?.checked??true,precalving:$('#notif-precalving')?.checked??true,term:$('#notif-term')?.checked??true,postpartum:$('#notif-postpartum')?.checked??true}; save();alert('Réglages enregistrés.')}; $('#resetSettingsBtn').onclick=()=>{state.settings={...DEFAULTS};state.notifications={...NOTIF_DEFAULTS};save()};
  $('#csvInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{importHerdCSV(await f.text(),f.name);alert(`Import terminé : ${state.cows.length} vaches présentes.`)}catch(err){alert('Import impossible : '+err.message)}e.target.value=''};
- $('#exportBtn').onclick=exportBackup; $('#restoreInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!x.cows||!x.settings)throw Error('format incorrect');state=x;save();alert('Sauvegarde restaurée.')}catch(err){alert('Restauration impossible : '+err.message)}e.target.value=''};
+ $('#exportBtn').onclick=exportBackup; $('#restoreInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!x.cows||!x.settings)throw Error('format incorrect');state=normalizeState(x);save();alert('Sauvegarde restaurée.')}catch(err){alert('Restauration impossible : '+err.message)}e.target.value=''};
  $('#notifyBtn').onclick=requestNotifications;
  $$('#calendarMode button').forEach(b=>b.onclick=()=>{$$('#calendarMode button').forEach(x=>x.classList.remove('active'));b.classList.add('active');calMode=b.dataset.mode;renderCalendar()});
  $('#calPrev').onclick=()=>{calDate=addDays(calDate,calMode==='day'?-1:calMode==='week'?-7:-30);renderCalendar()}; $('#calNext').onclick=()=>{calDate=addDays(calDate,calMode==='day'?1:calMode==='week'?7:30);renderCalendar()};
- renderAll(); if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
-  if('Notification' in window && Notification.permission==='granted'){const key='reproNotif-'+dateISO(today()); if(!localStorage.getItem(key)){const n=alertsForDay(dateISO(today())).length; if(n)new Notification('Repro Bovine',{body:`${n} surveillance(s) prévue(s) aujourd’hui.`}); localStorage.setItem(key,'1')}}
+ renderAll();
+ if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').then(()=>{maybeDailyNotification()}).catch(()=>{}); else maybeDailyNotification();
+ setInterval(maybeDailyNotification,60000);
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')maybeDailyNotification()});
+ window.addEventListener('focus',maybeDailyNotification);
 });

@@ -8,13 +8,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Repro Bovine</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="topbar">
     <div>
-      <div class="brand">🐄 Repro Bovine</div>
+      <div class="brand"><img src="icons/icon-192.png" class="brand-icon" alt=""> Repro Bovine <span class="version-badge">v1.2</span></div>
       <div id="todayLabel" class="muted small"></div>
     </div>
     <button id="quickAddBtn" class="primary compact">＋ Événement</button>
@@ -57,6 +58,8 @@
       <h2>Paramètres des alertes</h2>
       <p class="muted">Toutes les échéances peuvent être adaptées.</p>
       <div id="settingsForm" class="settings-grid"></div>
+      <h2>Notifications</h2>
+      <div id="notificationSettings"></div>
       <div class="settings-actions">
         <button id="saveSettingsBtn" class="primary">Enregistrer</button>
         <button id="resetSettingsBtn" class="ghost">Valeurs par défaut</button>

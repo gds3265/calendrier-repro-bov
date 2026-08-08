@@ -28,3 +28,12 @@ Fonctions V1 :
 Notifications V1 :
 - Permission et notification de synthèse disponibles lorsque l'application est ouverte.
 - Les notifications push automatiques en arrière-plan nécessiteront un service serveur/push dans une version suivante.
+
+
+V1.2 — Notifications
+- Réglage d’un récap quotidien et de son heure souhaitée.
+- Choix des familles d’alertes à notifier.
+- Notification de test et statut d’autorisation.
+- Notification locale lors de l’ouverture/reprise de la PWA si l’heure est passée.
+- Service worker préparé pour les notifications push futures.
+IMPORTANT : sans serveur push, iOS/Android peuvent suspendre la PWA ; une notification à heure fixe n’est donc pas garantie lorsque l’app est totalement fermée.
