@@ -5,3 +5,16 @@
 .brand{display:flex;align-items:center;gap:8px}.brand-icon{width:34px;height:34px;border-radius:9px;object-fit:cover;box-shadow:0 2px 8px #0002}.version-badge{font-size:.68rem;font-weight:700;padding:3px 7px;border-radius:999px;background:#fff3;color:inherit}.notification-panel{background:var(--card,#fff);border-radius:16px;padding:14px;margin-bottom:14px;box-shadow:0 2px 12px #0000000d}.setting-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid #0000000d}.setting-row p{margin:4px 0 0}.setting-row input[type=time]{max-width:130px}.toggleline{white-space:nowrap}.notif-types{display:grid;gap:10px;padding:14px 0}.notif-types label{display:flex;gap:8px;align-items:center}.notif-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}@media(max-width:540px){.setting-row{align-items:flex-start;flex-direction:column}.setting-row input[type=time]{width:100%;max-width:none}}
 .cow-search-main{flex:1;max-width:640px}.danger-outline{border:1px solid #b84f5d;color:#9a3242;background:#fff}.cow-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.inactive-card{opacity:.72}.inactive-label{color:#8b5b65}.import-summary{white-space:pre-line;text-align:left}
 @media(max-width:520px){.cow-actions{grid-template-columns:1fr}.section-head .cow-search-main{min-width:0}.section-head #addCowBtn{white-space:nowrap}}
+
+
+/* v1.3.2 mobile fix for checkboxes/notification settings */
+input[type="checkbox"],input[type="radio"]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
+.toggleline{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.notif-types{display:grid;gap:12px;padding:14px 0}
+.notif-types label{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;margin:0}
+.notif-types input[type="checkbox"]{margin-top:3px}
+@media(max-width:540px){
+  .notification-panel{padding:12px}
+  .notif-actions{display:grid;grid-template-columns:1fr;gap:10px}
+  .notif-actions .primary,.notif-actions .ghost{width:100%}
+}
