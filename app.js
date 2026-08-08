@@ -253,9 +253,9 @@ function notificationSummary(day=dateISO(today())){
 async function showNotification(title,body,tag='repro-bovine-daily'){
  if(!('Notification' in window)||Notification.permission!=='granted')return false;
  try{
-  if('serviceWorker'in navigator){const reg=await navigator.serviceWorker.ready; await reg.showNotification(title,{body,icon:'icons/icon-192.png',badge:'icons/icon-192.png',tag,renotify:true,data:{url:'./'}});return true}
-  new Notification(title,{body,icon:'icons/icon-192.png',tag}); return true;
- }catch(e){try{new Notification(title,{body,icon:'icons/icon-192.png'});return true}catch(_){return false}}
+  if('serviceWorker'in navigator){const reg=await navigator.serviceWorker.ready; await reg.showNotification(title,{body,icon:'icon-192.png',badge:'icon-192.png',tag,renotify:true,data:{url:'./'}});return true}
+  new Notification(title,{body,icon:'icon-192.png',tag}); return true;
+ }catch(e){try{new Notification(title,{body,icon:'icon-192.png'});return true}catch(_){return false}}
 }
 function updateNotifStatus(){
  const el=$('#notifStatus'); if(!el)return;
