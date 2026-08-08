@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7b3f61">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Repro Bovine</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">🐄 Repro Bovine</div>
+      <div id="todayLabel" class="muted small"></div>
+    </div>
+    <button id="quickAddBtn" class="primary compact">＋ Événement</button>
+  </header>
+
+  <main id="app">
+    <section id="view-home" class="view active">
+      <div class="hero-grid">
+        <button class="metric urgent" data-filter="today"><strong id="countToday">0</strong><span>À surveiller aujourd’hui</span></button>
+        <button class="metric" data-filter="week"><strong id="countWeek">0</strong><span>Dans les 7 jours</span></button>
+        <button class="metric"><strong id="countPregnant">0</strong><span>Pleines / supposées</span></button>
+      </div>
+      <div class="section-head"><h2>Priorités du jour</h2><button id="notifyBtn" class="ghost smallbtn">🔔 Notifications</button></div>
+      <div id="todayAlerts" class="cards"></div>
+      <div class="section-head"><h2>Prochainement</h2><span class="muted">7 jours</span></div>
+      <div id="weekAlerts" class="cards"></div>
+    </section>
+
+    <section id="view-calendar" class="view">
+      <div class="segmented" id="calendarMode"><button data-mode="day">Jour</button><button data-mode="week" class="active">Semaine</button><button data-mode="month">Mois</button></div>
+      <div class="calendar-nav"><button id="calPrev" class="ghost">‹</button><strong id="calTitle"></strong><button id="calNext" class="ghost">›</button></div>
+      <div id="calendarContent"></div>
+    </section>
+
+    <section id="view-cows" class="view">
+      <div class="searchbox"><span>🔎</span><input id="cowSearch" placeholder="Nom ou numéro de travail" autocomplete="off"></div>
+      <div class="chips"><button class="chip active" data-cow-filter="all">Toutes</button><button class="chip" data-cow-filter="pregnant">Pleines</button><button class="chip" data-cow-filter="watch">À surveiller</button><button class="chip" data-cow-filter="postpartum">Post-vêlage</button></div>
+      <div id="cowList" class="cards"></div>
+    </section>
+
+    <section id="view-bulls" class="view">
+      <div class="section-head"><h2>Taureaux</h2><button id="addBullBtn" class="primary compact">＋ Ajouter</button></div>
+      <p class="muted">Active les mâles réellement utilisés comme reproducteurs. Ils seront proposés lors d’une saillie naturelle.</p>
+      <div id="bullList" class="cards"></div>
+      <h3>Taureaux d’IA mémorisés</h3>
+      <div id="aiBullList" class="tags"></div>
+    </section>
+
+    <section id="view-settings" class="view">
+      <h2>Paramètres des alertes</h2>
+      <p class="muted">Toutes les échéances peuvent être adaptées.</p>
+      <div id="settingsForm" class="settings-grid"></div>
+      <div class="settings-actions">
+        <button id="saveSettingsBtn" class="primary">Enregistrer</button>
+        <button id="resetSettingsBtn" class="ghost">Valeurs par défaut</button>
+      </div>
+      <hr>
+      <h2>Données</h2>
+      <div class="cards">
+        <label class="card action-card"><strong>Importer un CSV troupeau</strong><span>Réimporte les animaux présents et recalcule les vêlages historiques.</span><input id="csvInput" type="file" accept=".csv,text/csv" hidden></label>
+        <button id="exportBtn" class="card action-card"><strong>Exporter une sauvegarde</strong><span>Vaches, événements, taureaux et réglages au format JSON.</span></button>
+        <label class="card action-card"><strong>Restaurer une sauvegarde</strong><span>Réimporte un fichier JSON précédemment exporté.</span><input id="restoreInput" type="file" accept=".json,application/json" hidden></label>
+      </div>
+      <p id="dataInfo" class="muted small"></p>
+    </section>
+  </main>
+
+  <nav class="bottomnav">
+    <button data-view="home" class="active"><span>🏠</span><small>Aujourd’hui</small></button>
+    <button data-view="calendar"><span>📅</span><small>Calendrier</small></button>
+    <button data-view="cows"><span>🐄</span><small>Vaches</small></button>
+    <button data-view="bulls"><span>🐂</span><small>Taureaux</small></button>
+    <button data-view="settings"><span>⚙️</span><small>Réglages</small></button>
+  </nav>
+
+  <dialog id="eventDialog">
+    <form method="dialog" id="eventForm">
+      <div class="dialog-head"><h2>Ajouter un événement</h2><button value="cancel" class="iconbtn">✕</button></div>
+      <label>Vache<div class="searchbox"><span>🔎</span><input id="eventCowSearch" placeholder="Nom ou n° travail" required autocomplete="off"></div></label>
+      <div id="eventCowMatches" class="match-list"></div>
+      <input type="hidden" id="eventCowId">
+      <div id="selectedCow" class="selected-cow hidden"></div>
+      <label>Événement<select id="eventType" required>
+        <option value="heat">Chaleur observée</option>
+        <option value="service">IA / saillie</option>
+        <option value="pregnant">Gestante confirmée</option>
+        <option value="not_pregnant">Diagnostic négatif</option>
+        <option value="calving">Vêlage</option>
+      </select></label>
+      <label>Date<input id="eventDate" type="date" required></label>
+      <div id="serviceFields" class="hidden field-group">
+        <label>Mode<select id="serviceMode"><option value="natural">Saillie naturelle</option><option value="ai">Insémination artificielle</option></select></label>
+        <label id="naturalBullWrap">Taureau<select id="naturalBull"></select></label>
+        <label id="aiBullWrap" class="hidden">Taureau utilisé<input id="aiBull" placeholder="Nom ou numéro du taureau"></label>
+      </div>
+      <label>Note (facultatif)<textarea id="eventNote" rows="2" placeholder="Observation…"></textarea></label>
+      <button type="submit" class="primary wide">Enregistrer</button>
+    </form>
+  </dialog>
+
+  <dialog id="cowDialog"><div id="cowDetail"></div></dialog>
+  <dialog id="bullDialog"><form method="dialog" id="bullForm"><div class="dialog-head"><h2>Ajouter un taureau</h2><button value="cancel" class="iconbtn">✕</button></div><label>Nom<input id="bullName" required></label><label>Numéro<input id="bullNumber"></label><button class="primary wide" type="submit">Ajouter</button></form></dialog>
+
+  <script src="initial-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
