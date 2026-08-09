@@ -6,16 +6,16 @@
   <meta name="theme-color" content="#7b3f61">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>Repro Bovine v1.3.2</title>
-  <link rel="manifest" href="manifest.webmanifest?v=132">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=132">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=132">
-  <link rel="stylesheet" href="styles.css?v=132">
+  <title>Repro Bovine v1.3.3</title>
+  <link rel="manifest" href="manifest.webmanifest?v=133">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=133">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=133">
+  <link rel="stylesheet" href="styles.css?v=133">
 </head>
 <body>
   <header class="topbar">
     <div>
-      <div class="brand"><img src="icon-192.png?v=132" class="brand-icon" alt=""> Repro Bovine <span class="version-badge">v1.3.2</span></div>
+      <div class="brand"><img src="icon-192.png?v=133" class="brand-icon" alt=""> Repro Bovine <span class="version-badge">v1.3.3</span></div>
       <div id="todayLabel" class="muted small"></div>
     </div>
     <button id="quickAddBtn" class="primary compact">＋ Événement</button>
@@ -42,7 +42,7 @@
 
     <section id="view-cows" class="view">
       <div class="section-head"><div class="searchbox cow-search-main"><span>🔎</span><input id="cowSearch" placeholder="Nom ou numéro de travail" autocomplete="off"></div><button id="addCowBtn" class="primary compact">＋ Vache</button></div>
-      <div class="chips"><button class="chip active" data-cow-filter="all">Toutes</button><button class="chip" data-cow-filter="pregnant">Pleines</button><button class="chip" data-cow-filter="watch">À surveiller</button><button class="chip" data-cow-filter="postpartum">Post-vêlage</button><button class="chip" data-cow-filter="inactive">Sorties</button></div>
+      <div class="chips"><button class="chip active" data-cow-filter="all">Toutes</button><button class="chip" data-cow-filter="pregnant">Pleines</button><button class="chip" data-cow-filter="watch">À surveiller</button><button class="chip" data-cow-filter="postpartum">Post-vêlage</button><button class="chip" data-cow-filter="underage">Hors âge</button><button class="chip" data-cow-filter="excluded">Exclues</button><button class="chip" data-cow-filter="inactive">Sorties</button></div>
       <div id="cowList" class="cards"></div>
     </section>
 
@@ -58,6 +58,8 @@
       <h2>Paramètres des alertes</h2>
       <p class="muted">Toutes les échéances peuvent être adaptées.</p>
       <div id="settingsForm" class="settings-grid"></div>
+      <h2>Suivi du troupeau</h2>
+      <div id="herdSettings"></div>
       <h2>Notifications</h2>
       <div id="notificationSettings"></div>
       <div class="settings-actions">
@@ -118,11 +120,12 @@
     <label>Race<input id="cowBreed" placeholder="Ex. Blonde d’Aquitaine"></label>
     <label>Date du dernier vêlage<input id="cowLastCalving" type="date"></label>
     <label>Rang de vêlage<input id="cowCalvingCount" type="number" min="0" step="1"></label>
+    <label class="check-card"><input id="cowForceRepro" type="checkbox"> <span><strong>Inclure dans le suivi repro même si elle est hors âge</strong><small>Utile pour une femelle mise à la reproduction plus tôt que le seuil général.</small></span></label>
     <button class="primary wide" type="submit">Enregistrer</button>
   </form></dialog>
   <dialog id="bullDialog"><form method="dialog" id="bullForm"><div class="dialog-head"><h2>Ajouter un taureau</h2><button value="cancel" class="iconbtn">✕</button></div><label>Nom<input id="bullName" required></label><label>Numéro<input id="bullNumber"></label><button class="primary wide" type="submit">Ajouter</button></form></dialog>
 
-  <script src="initial-data.js?v=132"></script>
-  <script src="app.js?v=132"></script>
+  <script src="initial-data.js?v=133"></script>
+  <script src="app.js?v=133"></script>
 </body>
 </html>

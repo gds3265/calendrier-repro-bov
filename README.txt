@@ -53,3 +53,6 @@ V1.2 — Notifications
 - Notification locale lors de l’ouverture/reprise de la PWA si l’heure est passée.
 - Service worker préparé pour les notifications push futures.
 IMPORTANT : sans serveur push, iOS/Android peuvent suspendre la PWA ; une notification à heure fixe n’est donc pas garantie lorsque l’app est totalement fermée.
+
+
+V1.3.3 : ajout d’un âge minimum paramétrable pour le suivi reproduction, liste des femelles hors âge, inclusion forcée au cas par cas et conservation des choix lors des imports CSV.
