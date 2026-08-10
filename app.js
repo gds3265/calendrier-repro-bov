@@ -141,7 +141,7 @@ function openCow(id){
   ${c.active!==false&&!isReproEligible(c)?`<div class="card eligibility-card"><strong>Hors suivi reproduction</strong><div class="cow-sub">${isUnderAge(c)?`Âge inférieur au seuil de ${state.herdSettings.minFemaleAgeMonths} mois.`:'Exclusion manuelle du suivi.'}</div><button class="primary compact" id="forceIncludeCow">✓ Inclure dans le suivi repro</button></div>`:c.active!==false&&c.reproOverride==='include'?`<div class="card eligibility-card"><strong>Inclusion forcée</strong><div class="cow-sub">Cette femelle est suivie même si elle est hors du critère d’âge.</div><button class="ghost compact" id="removeIncludeOverride">Revenir au critère d’âge</button></div>`:c.active!==false?`<div class="card eligibility-card"><strong>Suivi reproduction actif</strong><div class="cow-sub">Cette femelle respecte le critère d’âge actuel.</div><button class="ghost compact" id="excludeCowRepro">Exclure du suivi repro</button></div>`:''}
   <div class="cow-actions"><button class="ghost" id="editCow">✏️ Modifier la fiche</button>${c.active===false?'<button class="primary" id="reactivateCow">↩️ Réintégrer au troupeau</button>':'<button class="danger-outline" id="exitCow">Sortir du troupeau</button>'}</div>
   ${isReproEligible(c)?'<button class="primary wide" id="addForCow">＋ Ajouter un événement</button>':''}
-  <h3>Historique</h3><div class="timeline">${ev.length?ev.map(e=>`<div class="timeline-item"><strong>${eventLabel(e)}</strong><div class="cow-sub">${frDate(e.date)}${e.bull?` • ${esc(e.bull)}`:''}${e.note?` • ${esc(e.note)}`:''}</div></div>`).join(''):`<div class="muted">Aucun événement saisi dans l’application.</div>`}</div>`;
+  <h3>Historique</h3><div class="timeline">${ev.length?ev.map(e=>`<div class="timeline-item event-history-row"><div><strong>${eventLabel(e)}</strong><div class="cow-sub">${frDate(e.date)}${e.bull?` • ${esc(e.bull)}`:''}${e.note?` • ${esc(e.note)}`:''}</div></div><button type="button" class="ghost compact edit-event" data-event-id="${esc(e.id)}">✏️ Modifier</button></div>`).join(''):`<div class="muted">Aucun événement saisi dans l’application.</div>`}</div>`;
   $('#closeCow').onclick=()=>$('#cowDialog').close();
   $('#editCow').onclick=()=>{ $('#cowDialog').close(); openCowForm(c.id) };
   if($('#forceIncludeCow'))$('#forceIncludeCow').onclick=()=>{c.reproOverride='include';save();openCow(c.id)};
@@ -149,6 +149,7 @@ function openCow(id){
   if($('#excludeCowRepro'))$('#excludeCowRepro').onclick=()=>{c.reproOverride='exclude';save();openCow(c.id)};
   if(c.active!==false){ if($('#addForCow'))$('#addForCow').onclick=()=>{ $('#cowDialog').close(); openEvent(c.id)}; $('#exitCow').onclick=()=>exitCow(c.id) }
   else $('#reactivateCow').onclick=()=>{c.active=true;c.exitDate='';c.exitReason='';c.exitOrigin='';save();$('#cowDialog').close();};
+  $$('.edit-event').forEach(b=>b.onclick=()=>{const eventId=b.dataset.eventId; $('#cowDialog').close(); openEvent(c.id,eventId)});
   $('#cowDialog').showModal();
 }
 function openCowForm(id=''){
@@ -166,10 +167,21 @@ function exitCow(id){const c=state.cows.find(x=>x.id===id);if(!c)return; const r
 function eventLabel(e){return ({heat:'Chaleur observée',service:e.mode==='ai'?'Insémination artificielle':'Saillie naturelle',pregnant:'Gestation confirmée',not_pregnant:'Diagnostic négatif',calving:'Vêlage'})[e.type]||e.type}
 
 function renderBulls(){
-  $('#bullList').innerHTML=state.males.length?state.males.map((b,i)=>`<div class="card bull-toggle"><div><strong>${esc(b.name||'Sans nom')} · ${esc(b.workNumber||'—')}</strong><div class="cow-sub">${esc(b.id||'')} ${b.birthDate?'• '+ageText(b.birthDate):''}</div></div><button class="switch ${b.activeBreeder?'on':''}" data-bull="${i}" aria-label="Activer"></button></div>`).join(''):`<div class="empty">Aucun mâle dans la base.</div>`;
-  $$('[data-bull]').forEach(b=>b.onclick=()=>{state.males[+b.dataset.bull].activeBreeder=!state.males[+b.dataset.bull].activeBreeder; save()});
+  $('#bullList').innerHTML=state.males.length?state.males.map((b,i)=>`<div class="card bull-card-edit"><div class="bull-toggle"><div><strong>${esc(b.name||'Sans nom')} · ${esc(b.workNumber||'—')}</strong><div class="cow-sub">${esc(b.id||'')} ${b.birthDate?'• '+ageText(b.birthDate):''}</div></div><button type="button" class="switch ${b.activeBreeder?'on':''}" data-bull-toggle="${i}" aria-label="Activer comme reproducteur"></button></div><button type="button" class="ghost compact edit-bull" data-bull-edit="${i}">✏️ Modifier la fiche</button></div>`).join(''):`<div class="empty">Aucun mâle dans la base.</div>`;
+  $$('[data-bull-toggle]').forEach(b=>b.onclick=()=>{state.males[+b.dataset.bullToggle].activeBreeder=!state.males[+b.dataset.bullToggle].activeBreeder; save()});
+  $$('[data-bull-edit]').forEach(b=>b.onclick=()=>openBullForm(+b.dataset.bullEdit));
   $('#aiBullList').innerHTML=state.aiBulls.length?state.aiBulls.map(x=>`<span class="tag">${esc(x)}</span>`).join(''):`<span class="muted">Ils apparaîtront ici après les premières IA.</span>`;
   populateNaturalBulls();
+}
+function openBullForm(index=null){
+  $('#bullForm').reset(); const editing=index!==null&&index!==undefined; const b=editing?state.males[index]:null;
+  $('#bullEditId').value=editing?String(index):''; $('#bullDialogTitle').textContent=editing?'Modifier le taureau':'Ajouter un taureau'; $('#saveBullBtn').textContent=editing?'Enregistrer':'Ajouter';
+  $('#bullName').value=b?.name||''; $('#bullNumber').value=b?.workNumber||''; $('#bullDialog').showModal();
+}
+function saveBullForm(e){e.preventDefault(); const raw=$('#bullEditId').value, editing=raw!==''; const name=$('#bullName').value.trim(), workNumber=$('#bullNumber').value.trim(); if(!name){alert('Le nom du taureau est obligatoire.');return}
+  if(editing){const b=state.males[Number(raw)]; if(!b)return; b.name=name;b.workNumber=workNumber;b.manualEdit=true;}
+  else state.males.push({id:'manual-'+uid(),name,workNumber,birthDate:'',activeBreeder:true,manualEdit:true});
+  save();$('#bullDialog').close();$('#bullForm').reset();
 }
 function populateNaturalBulls(){const sel=$('#naturalBull'); if(!sel)return; const a=state.males.filter(b=>b.activeBreeder); sel.innerHTML=a.length?a.map(b=>`<option value="${esc(b.name||b.workNumber)}">${esc((b.name||'')+' · '+(b.workNumber||''))}</option>`).join(''):`<option value="">Aucun taureau actif — à régler dans Taureaux</option>`}
 
@@ -209,19 +221,25 @@ function renderCalendar(){
  $('#calendarContent').innerHTML=days.map(d=>{const iso=dateISO(d), a=alertsForDay(iso); return `<div class="day-block"><div class="day-title">${frDate(d,{weekday:'long',day:'numeric',month:'long'})}</div>${a.length?a.map(alertHTML).join(''):`<div class="empty">Rien à surveiller</div>`}</div>`}).join(''); bindCowOpen();
 }
 
-function openEvent(cowId){
- $('#eventForm').reset(); $('#eventDate').value=dateISO(today()); $('#eventCowId').value=''; $('#selectedCow').classList.add('hidden'); $('#eventCowMatches').innerHTML=''; $('#eventCowSearch').value=''; updateServiceFields();
- if(cowId){selectEventCow(state.cows.find(c=>c.id===cowId))}
- $('#eventDialog').showModal();
+function findEventOwner(eventId){for(const c of state.cows){const ev=(c.events||[]).find(e=>e.id===eventId);if(ev)return {cow:c,event:ev}}return null}
+function openEvent(cowId,eventId=''){
+ $('#eventForm').reset(); $('#eventEditId').value=eventId||''; $('#eventDialogTitle').textContent=eventId?'Modifier l’événement':'Ajouter un événement'; $('#eventType').value='service'; $('#eventDate').value=dateISO(today()); $('#eventCowId').value=''; $('#selectedCow').classList.add('hidden'); $('#eventCowMatches').innerHTML=''; $('#eventCowSearch').value=''; populateNaturalBulls();
+ if(eventId){const found=findEventOwner(eventId); if(found){const ev=found.event; selectEventCow(found.cow); $('#eventType').value=ev.type||'service'; $('#eventDate').value=ev.date||dateISO(today()); $('#eventNote').value=ev.note||''; if(ev.type==='service'){ $('#serviceMode').value=ev.mode||'natural'; updateServiceFields(); if(ev.mode==='ai')$('#aiBull').value=ev.bull||''; else {const sel=$('#naturalBull'); const value=ev.bull||''; if(value&&![...sel.options].some(o=>o.value===value)){const opt=document.createElement('option');opt.value=value;opt.textContent=value+' (ancien)';sel.appendChild(opt)} sel.value=value;} } }}
+ else if(cowId){selectEventCow(state.cows.find(c=>c.id===cowId))}
+ updateServiceFields(); $('#eventDialog').showModal();
 }
 function selectEventCow(c){if(!c)return; $('#eventCowId').value=c.id; $('#eventCowSearch').value=''; $('#eventCowMatches').innerHTML=''; $('#selectedCow').textContent=`${c.name||'Sans nom'} · ${c.workNumber}`; $('#selectedCow').classList.remove('hidden')}
 function updateServiceFields(){const svc=$('#eventType').value==='service'; $('#serviceFields').classList.toggle('hidden',!svc); const ai=$('#serviceMode').value==='ai'; $('#naturalBullWrap').classList.toggle('hidden',ai); $('#aiBullWrap').classList.toggle('hidden',!ai)}
+function closeEventDialog(){if($('#eventDialog').open)$('#eventDialog').close(); $('#eventForm').reset(); $('#eventCowMatches').innerHTML=''}
 
 function addEventFromForm(e){e.preventDefault(); const c=state.cows.find(x=>x.id===$('#eventCowId').value); if(!c){alert('Choisis une vache dans la liste.');return}
- const type=$('#eventType').value, date=$('#eventDate').value; const ev={id:uid(),type,date,note:$('#eventNote').value.trim()};
+ const type=$('#eventType').value, date=$('#eventDate').value; if(!date){alert('Indique la date de l’événement.');return} const editId=$('#eventEditId').value;
+ const ev={id:editId||uid(),type,date,note:$('#eventNote').value.trim()};
  if(type==='service'){ev.mode=$('#serviceMode').value; ev.bull=ev.mode==='ai'?$('#aiBull').value.trim():$('#naturalBull').value; if(ev.mode==='ai'&&ev.bull&&!state.aiBulls.includes(ev.bull))state.aiBulls.push(ev.bull)}
- c.events=c.events||[]; c.events.push(ev); if(type==='calving'){c.lastCalving=date;c.calvingCount=(c.calvingCount||0)+1}
- save(); $('#eventDialog').close();
+ if(editId){const found=findEventOwner(editId); if(found){const oldWasCalving=found.event.type==='calving'; const newIsCalving=type==='calving'; found.cow.events=(found.cow.events||[]).filter(x=>x.id!==editId); if(oldWasCalving&&!newIsCalving)found.cow.calvingCount=Math.max(0,(found.cow.calvingCount||0)-1); if(found.cow!==c&&oldWasCalving)found.cow.calvingCount=Math.max(0,(found.cow.calvingCount||0)-1); if(newIsCalving&&(!oldWasCalving||found.cow!==c))c.calvingCount=(c.calvingCount||0)+1; }}
+ else if(type==='calving')c.calvingCount=(c.calvingCount||0)+1;
+ c.events=c.events||[]; c.events.push(ev); if(type==='calving')c.lastCalving=date;
+ save(); closeEventDialog();
 }
 
 function parseCSV(text){
@@ -242,7 +260,7 @@ function importHerdCSV(text,name){
    if(c){ c.workNumber=work||c.workNumber;c.name=r.Nom||c.name;c.birthDate=birth||c.birthDate;c.breed=r['Type racial']||c.breed||'';c.lastCalving=[c.lastCalving,histLast].filter(Boolean).sort().at(-1)||'';c.calvingCount=Math.max(c.calvingCount||0,b.length);c.source='csv'; if(csvExit){if(c.active!==false)exited++;c.active=false;c.exitDate=csvExit;c.exitReason=c.exitReason||'Sortie indiquée dans le CSV';c.exitOrigin='csv'} else if(c.exitOrigin!=='manual'){c.active=true;c.exitDate='';c.exitReason='';c.exitOrigin=''}; updated++;
    } else {state.cows.push({id:rid,workNumber:work,name:r.Nom,birthDate:birth,breed:r['Type racial']||'',lastCalving:histLast,calvingCount:b.length,events:[],active:!csvExit,exitDate:csvExit,exitReason:csvExit?'Sortie indiquée dans le CSV':'',exitOrigin:csvExit?'csv':'',source:'csv',reproOverride:''});added++;}
  }
- const oldM=new Map(state.males.map(b=>[b.id,b])); state.males=records.filter(r=>r.Sexe==='M'&&!r['Date sortie']).map(r=>({id:r['Identifiant bovin'],workNumber:r['Numéro travail'],name:r.Nom,birthDate:dmyToIso(r['Date naissance']),activeBreeder:oldM.get(r['Identifiant bovin'])?.activeBreeder||false}));
+ const oldM=new Map(state.males.map(b=>[b.id,b])); const csvMales=records.filter(r=>r.Sexe==='M'&&!r['Date sortie']).map(r=>{const old=oldM.get(r['Identifiant bovin']);return {id:r['Identifiant bovin'],workNumber:old?.manualEdit?(old.workNumber||r['Numéro travail']):r['Numéro travail'],name:old?.manualEdit?(old.name||r.Nom):r.Nom,birthDate:dmyToIso(r['Date naissance']),activeBreeder:old?.activeBreeder||false,manualEdit:old?.manualEdit||false}}); const csvIds=new Set(csvMales.map(b=>b.id)); const manualMales=state.males.filter(b=>b.id?.startsWith('manual-')&&!csvIds.has(b.id)); state.males=[...csvMales,...manualMales];
  const underAge=state.cows.filter(c=>c.active!==false&&isUnderAge(c)&&c.reproOverride!=='include').length; state.meta={source:name,importedAt:dateISO(today()),lastImport:{added,updated,exited,manualKept,underAge}};save(); return {added,updated,exited,manualKept,underAge};
 }
 
@@ -304,8 +322,8 @@ document.addEventListener('DOMContentLoaded',()=>{
  $$('.bottomnav button').forEach(b=>b.onclick=()=>switchView(b.dataset.view)); $('#quickAddBtn').onclick=()=>openEvent();
  $('#cowSearch').oninput=renderCows; $('#addCowBtn').onclick=()=>openCowForm(); $('#cowForm').onsubmit=saveCowForm; $$('.chip').forEach(b=>b.onclick=()=>{$$('.chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');cowFilter=b.dataset.cowFilter;renderCows()});
  $('#eventCowSearch').oninput=()=>{const q=norm($('#eventCowSearch').value); if(q.length<1){$('#eventCowMatches').innerHTML='';return} const list=state.cows.filter(c=>isReproEligible(c)&&(norm(c.name).includes(q)||norm(c.workNumber).includes(q))).slice(0,8); $('#eventCowMatches').innerHTML=list.map(c=>`<button type="button" class="match" data-pick="${esc(c.id)}"><strong>${esc(c.name||'Sans nom')} · ${esc(c.workNumber)}</strong><div class="cow-sub">${ageText(c.birthDate)}</div></button>`).join(''); $$('[data-pick]').forEach(b=>b.onclick=()=>selectEventCow(state.cows.find(c=>c.id===b.dataset.pick)))};
- $('#eventType').onchange=updateServiceFields; $('#serviceMode').onchange=updateServiceFields; $('#eventForm').onsubmit=addEventFromForm;
- $('#addBullBtn').onclick=()=>$('#bullDialog').showModal(); $('#bullForm').onsubmit=e=>{e.preventDefault();state.males.push({id:'manual-'+uid(),name:$('#bullName').value.trim(),workNumber:$('#bullNumber').value.trim(),birthDate:'',activeBreeder:true});save();$('#bullDialog').close();$('#bullForm').reset()};
+ $('#eventType').onchange=updateServiceFields; $('#serviceMode').onchange=updateServiceFields; $('#eventForm').onsubmit=addEventFromForm; $('#cancelEventTop').onclick=closeEventDialog; $('#cancelEventBottom').onclick=closeEventDialog;
+ $('#addBullBtn').onclick=()=>openBullForm(); $('#bullForm').onsubmit=saveBullForm; $('#cancelBullTop').onclick=()=>$('#bullDialog').close(); $('#cancelBullBottom').onclick=()=>$('#bullDialog').close();
  $('#saveSettingsBtn').onclick=()=>{Object.keys(DEFAULTS).forEach(k=>state.settings[k]=Math.max(0,Number($(`#set-${k}`).value)||0)); state.herdSettings={...HERD_DEFAULTS,...state.herdSettings,minFemaleAgeMonths:Math.max(0,Number($('#minFemaleAgeMonths')?.value)||0)}; state.notifications={...NOTIF_DEFAULTS,...state.notifications,enabled:$('#notif-enabled')?.checked??false,time:$('#notif-time')?.value||'07:00',heatReturn:$('#notif-heatReturn')?.checked??true,pregCheck:$('#notif-pregCheck')?.checked??true,precalving:$('#notif-precalving')?.checked??true,term:$('#notif-term')?.checked??true,postpartum:$('#notif-postpartum')?.checked??true}; save();alert('Réglages enregistrés. Le suivi repro a été recalculé avec le nouvel âge minimum.');}; $('#resetSettingsBtn').onclick=()=>{state.settings={...DEFAULTS};state.herdSettings={...HERD_DEFAULTS};state.notifications={...NOTIF_DEFAULTS};save()};
  $('#csvInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const r=importHerdCSV(await f.text(),f.name);alert(`Fusion CSV terminée.\n\n${r.added} nouvelle(s) vache(s)\n${r.updated} fiche(s) reconnue(s) et mise(s) à jour\n${r.exited} sortie(s) détectée(s)\n${r.manualKept} vache(s) ajoutée(s) manuellement conservée(s)\n${r.underAge} femelle(s) hors critère d’âge\n\nLes événements repro saisis dans l’application ont été conservés.`)}catch(err){alert('Import impossible : '+err.message)}e.target.value=''};
  $('#exportBtn').onclick=exportBackup; $('#restoreInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!x.cows||!x.settings)throw Error('format incorrect');state=normalizeState(x);save();alert('Sauvegarde restaurée.')}catch(err){alert('Restauration impossible : '+err.message)}e.target.value=''};

@@ -6,16 +6,16 @@
   <meta name="theme-color" content="#7b3f61">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>Repro Bovine v1.3.3</title>
-  <link rel="manifest" href="manifest.webmanifest?v=133">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=133">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=133">
-  <link rel="stylesheet" href="styles.css?v=133">
+  <title>Repro Bovine v1.3.4</title>
+  <link rel="manifest" href="manifest.webmanifest?v=134">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=134">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=134">
+  <link rel="stylesheet" href="styles.css?v=134">
 </head>
 <body>
   <header class="topbar">
     <div>
-      <div class="brand"><img src="icon-192.png?v=133" class="brand-icon" alt=""> Repro Bovine <span class="version-badge">v1.3.3</span></div>
+      <div class="brand"><img src="icon-192.png?v=134" class="brand-icon" alt=""> Repro Bovine <span class="version-badge">v1.3.4</span></div>
       <div id="todayLabel" class="muted small"></div>
     </div>
     <button id="quickAddBtn" class="primary compact">＋ Événement</button>
@@ -86,27 +86,28 @@
   </nav>
 
   <dialog id="eventDialog">
-    <form method="dialog" id="eventForm">
-      <div class="dialog-head"><h2>Ajouter un événement</h2><button value="cancel" class="iconbtn">✕</button></div>
-      <label>Vache<div class="searchbox"><span>🔎</span><input id="eventCowSearch" placeholder="Nom ou n° travail" required autocomplete="off"></div></label>
+    <form id="eventForm">
+      <div class="dialog-head"><h2 id="eventDialogTitle">Ajouter un événement</h2><button type="button" id="cancelEventTop" class="iconbtn" aria-label="Fermer">✕</button></div>
+      <input type="hidden" id="eventEditId">
+      <label>Vache<div class="searchbox"><span>🔎</span><input id="eventCowSearch" placeholder="Nom ou n° travail" autocomplete="off"></div></label>
       <div id="eventCowMatches" class="match-list"></div>
       <input type="hidden" id="eventCowId">
       <div id="selectedCow" class="selected-cow hidden"></div>
       <label>Événement<select id="eventType" required>
-        <option value="heat">Chaleur observée</option>
         <option value="service">IA / saillie</option>
+        <option value="heat">Chaleur observée</option>
         <option value="pregnant">Gestante confirmée</option>
         <option value="not_pregnant">Diagnostic négatif</option>
         <option value="calving">Vêlage</option>
       </select></label>
       <label>Date<input id="eventDate" type="date" required></label>
-      <div id="serviceFields" class="hidden field-group">
+      <div id="serviceFields" class="field-group">
         <label>Mode<select id="serviceMode"><option value="natural">Saillie naturelle</option><option value="ai">Insémination artificielle</option></select></label>
         <label id="naturalBullWrap">Taureau<select id="naturalBull"></select></label>
         <label id="aiBullWrap" class="hidden">Taureau utilisé<input id="aiBull" placeholder="Nom ou numéro du taureau"></label>
       </div>
       <label>Note (facultatif)<textarea id="eventNote" rows="2" placeholder="Observation…"></textarea></label>
-      <button type="submit" class="primary wide">Enregistrer</button>
+      <div class="dialog-actions"><button type="submit" class="primary">Enregistrer</button><button type="button" id="cancelEventBottom" class="ghost">Annuler</button></div>
     </form>
   </dialog>
 
@@ -123,9 +124,9 @@
     <label class="check-card"><input id="cowForceRepro" type="checkbox"> <span><strong>Inclure dans le suivi repro même si elle est hors âge</strong><small>Utile pour une femelle mise à la reproduction plus tôt que le seuil général.</small></span></label>
     <button class="primary wide" type="submit">Enregistrer</button>
   </form></dialog>
-  <dialog id="bullDialog"><form method="dialog" id="bullForm"><div class="dialog-head"><h2>Ajouter un taureau</h2><button value="cancel" class="iconbtn">✕</button></div><label>Nom<input id="bullName" required></label><label>Numéro<input id="bullNumber"></label><button class="primary wide" type="submit">Ajouter</button></form></dialog>
+  <dialog id="bullDialog"><form id="bullForm"><div class="dialog-head"><h2 id="bullDialogTitle">Ajouter un taureau</h2><button type="button" id="cancelBullTop" class="iconbtn">✕</button></div><input type="hidden" id="bullEditId"><label>Nom<input id="bullName" required></label><label>Numéro<input id="bullNumber"></label><div class="dialog-actions"><button class="primary" type="submit" id="saveBullBtn">Ajouter</button><button class="ghost" type="button" id="cancelBullBottom">Annuler</button></div></form></dialog>
 
-  <script src="initial-data.js?v=133"></script>
-  <script src="app.js?v=133"></script>
+  <script src="initial-data.js?v=134"></script>
+  <script src="app.js?v=134"></script>
 </body>
 </html>

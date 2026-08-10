@@ -21,3 +21,9 @@ input[type="checkbox"],input[type="radio"]{width:auto;padding:0;margin:0;accent-
 /* v1.3.3 suivi repro par âge */
 .age-setting{display:flex;align-items:center;gap:8px;min-width:130px}.age-setting input{width:90px}.check-card{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;background:#faf7f9;border:1px solid var(--line);border-radius:13px;padding:12px;margin-top:14px}.check-card input{margin-top:3px}.check-card strong,.check-card small{display:block}.check-card small{font-weight:400;color:var(--muted);margin-top:4px}.eligibility-card{border-style:dashed}.eligibility-card button{margin-top:10px}
 @media(max-width:540px){.age-setting{width:100%}.age-setting input{flex:1;width:auto}}
+/* v1.3.4 event + bull editing */
+.dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;position:sticky;bottom:0;background:#fff;padding:10px 0 2px;z-index:2}
+.event-history-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}
+.event-history-row .edit-event{margin-top:-3px}
+.bull-card-edit{display:grid;gap:10px}.bull-card-edit .edit-bull{justify-self:start}
+@media(max-width:540px){.dialog-actions{grid-template-columns:1fr}.event-history-row{grid-template-columns:1fr}.event-history-row .edit-event{justify-self:start}}
