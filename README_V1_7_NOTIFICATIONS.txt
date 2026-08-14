@@ -58,3 +58,6 @@ Le récap peut inclure :
 - post-avortement
 
 La notification ouvre Repro Bovine lorsqu'on la touche.
+
+
+V1.7.1 : correction CORS du test push navigateur + cron sans Vault.

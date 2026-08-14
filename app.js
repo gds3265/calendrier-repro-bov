@@ -9,7 +9,7 @@ let calMode='week', calDate=today(), cowFilter='all';
 let calendarFilters=(()=>{try{return {...{heat:true,gestation:true,abortion:true,postpartum:false},...JSON.parse(localStorage.getItem('repro-calendar-filters')||'{}')}}catch(e){return {heat:true,gestation:true,abortion:true,postpartum:false}}})();
 let homeFilters=(()=>{try{return {...{heat:true,gestation:true,abortion:true,postpartum:false},...JSON.parse(localStorage.getItem('repro-home-filters')||'{}')}}catch(e){return {heat:true,gestation:true,abortion:true,postpartum:false}}})();
 
-// --- Repro Bovine v1.7.0 : Supabase + notifications Web Push ---
+// --- Repro Bovine v1.7.1 : Supabase + notifications Web Push ---
 const SUPABASE_URL='https://uuyiazyofyyuxwiolizr.supabase.co';
 const SUPABASE_KEY='sb_publishable_FtQAhsVfoPbyG1hD3lT1VQ_LhgiW8Hl';
 const HOUSEHOLD_ID='5826e26b-eb84-460f-bb8e-7a2194e905b2';
@@ -99,13 +99,13 @@ async function testSupabaseNetwork(){
 }
 async function clearLegacyPwaCaches(){
  try{
-   if('caches' in window){const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('repro-bovine')&&k!=='repro-bovine-v170').map(k=>caches.delete(k)))}
+   if('caches' in window){const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('repro-bovine')&&k!=='repro-bovine-v171').map(k=>caches.delete(k)))}
  }catch(_){}
 }
 function urlBase64ToUint8Array(base64String){const padding='='.repeat((4-base64String.length%4)%4),base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(base64);return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)))}
 async function registerPushServiceWorker(){
  if(!('serviceWorker' in navigator))throw new Error('Service worker non pris en charge sur cet appareil.');
- const reg=await navigator.serviceWorker.register('./sw.js?v=170',{scope:'./'});
+ const reg=await navigator.serviceWorker.register('./sw.js?v=171',{scope:'./'});
  await navigator.serviceWorker.ready;return reg;
 }
 async function savePushSubscription(sub){
@@ -127,7 +127,10 @@ async function disablePushDevice(){
 }
 async function testServerPush(){
  if(!cloudSession?.access_token)throw new Error('Connecte-toi au cloud partagé.');
- const r=await fetch(PUSH_FUNCTION_URL+'?mode=test',{method:'POST',headers:{'Authorization':'Bearer '+cloudSession.access_token,'Content-Type':'application/json'}});const t=await r.text();if(!r.ok)throw new Error(t||('HTTP '+r.status));return t;
+ const r=await fetch(PUSH_FUNCTION_URL+'?mode=test',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+cloudSession.access_token,'Content-Type':'application/json'},body:'{}'});
+ const t=await r.text();
+ if(!r.ok)throw new Error(t||('HTTP '+r.status));
+ try{return t?JSON.parse(t):{ok:true}}catch(_){return {ok:true,raw:t}}
 }
 
 async function cloudLogout(){try{await getSupabaseClient().auth.signOut()}catch(_){}storeCloudSession(null);cloudReady=false;showAuthDialog()}
