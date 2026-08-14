@@ -9,10 +9,12 @@ let calMode='week', calDate=today(), cowFilter='all';
 let calendarFilters=(()=>{try{return {...{heat:true,gestation:true,abortion:true,postpartum:false},...JSON.parse(localStorage.getItem('repro-calendar-filters')||'{}')}}catch(e){return {heat:true,gestation:true,abortion:true,postpartum:false}}})();
 let homeFilters=(()=>{try{return {...{heat:true,gestation:true,abortion:true,postpartum:false},...JSON.parse(localStorage.getItem('repro-home-filters')||'{}')}}catch(e){return {heat:true,gestation:true,abortion:true,postpartum:false}}})();
 
-// --- Repro Bovine v1.6.0 : Supabase + priorité chronologique + filtres calendrier ---
+// --- Repro Bovine v1.7.0 : Supabase + notifications Web Push ---
 const SUPABASE_URL='https://uuyiazyofyyuxwiolizr.supabase.co';
 const SUPABASE_KEY='sb_publishable_FtQAhsVfoPbyG1hD3lT1VQ_LhgiW8Hl';
 const HOUSEHOLD_ID='5826e26b-eb84-460f-bb8e-7a2194e905b2';
+const VAPID_PUBLIC_KEY='BGSYvnHnHsVwVYwF-WuLDRYy8G-eGj1e6VVkL2nHvcmpCTZ0DE-x134IVJQxnrkcyD1OZNtAt7xwy-1l_ubCXw0';
+const PUSH_FUNCTION_URL=SUPABASE_URL+'/functions/v1/repro-notifications';
 const CLOUD_SESSION_KEY='reproBovineSupabaseSession';
 const CLOUD_SHADOW_KEY='reproBovineCloudShadowV14';
 let cloudSession=null, cloudSyncTimer=null, cloudSyncing=false, cloudReady=false;
@@ -97,9 +99,35 @@ async function testSupabaseNetwork(){
 }
 async function clearLegacyPwaCaches(){
  try{
-   if('serviceWorker' in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.unregister()))}
-   if('caches' in window){const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('repro-bovine')).map(k=>caches.delete(k)))}
+   if('caches' in window){const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('repro-bovine')&&k!=='repro-bovine-v170').map(k=>caches.delete(k)))}
  }catch(_){}
+}
+function urlBase64ToUint8Array(base64String){const padding='='.repeat((4-base64String.length%4)%4),base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(base64);return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)))}
+async function registerPushServiceWorker(){
+ if(!('serviceWorker' in navigator))throw new Error('Service worker non pris en charge sur cet appareil.');
+ const reg=await navigator.serviceWorker.register('./sw.js?v=170',{scope:'./'});
+ await navigator.serviceWorker.ready;return reg;
+}
+async function savePushSubscription(sub){
+ if(!cloudSession?.user?.id)throw new Error('Connecte-toi d’abord au cloud partagé.');
+ const j=sub.toJSON();
+ await cloudFetch('/rest/v1/push_subscriptions?on_conflict=user_id,endpoint',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({household_id:HOUSEHOLD_ID,user_id:cloudSession.user.id,endpoint:j.endpoint,p256dh:j.keys?.p256dh||null,auth_key:j.keys?.auth||null,user_agent:navigator.userAgent,enabled:true})});
+}
+async function subscribePushDevice(){
+ if(!cloudSession)throw new Error('Connecte-toi d’abord à Repro Bovine.');
+ if(!('Notification' in window)||!('PushManager' in window))throw new Error('Le Web Push n’est pas disponible ici. Sur iPhone, installe Repro Bovine sur l’écran d’accueil.');
+ let perm=Notification.permission;if(perm!=='granted')perm=await Notification.requestPermission();if(perm!=='granted')throw new Error('Autorisation de notifications refusée.');
+ const reg=await registerPushServiceWorker();
+ let sub=await reg.pushManager.getSubscription();
+ if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+ await savePushSubscription(sub);return sub;
+}
+async function disablePushDevice(){
+ try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();if(sub){if(cloudSession?.user?.id){await cloudFetch('/rest/v1/push_subscriptions?user_id=eq.'+encodeURIComponent(cloudSession.user.id)+'&endpoint=eq.'+encodeURIComponent(sub.endpoint),{method:'PATCH',body:JSON.stringify({enabled:false})})}await sub.unsubscribe()}}catch(e){console.warn(e)}updateNotifStatus();
+}
+async function testServerPush(){
+ if(!cloudSession?.access_token)throw new Error('Connecte-toi au cloud partagé.');
+ const r=await fetch(PUSH_FUNCTION_URL+'?mode=test',{method:'POST',headers:{'Authorization':'Bearer '+cloudSession.access_token,'Content-Type':'application/json'}});const t=await r.text();if(!r.ok)throw new Error(t||('HTTP '+r.status));return t;
 }
 
 async function cloudLogout(){try{await getSupabaseClient().auth.signOut()}catch(_){}storeCloudSession(null);cloudReady=false;showAuthDialog()}
@@ -197,8 +225,8 @@ function currentCloudShadow(){
 function loadCloudShadow(){try{return JSON.parse(localStorage.getItem(CLOUD_SHADOW_KEY)||'null')}catch(_){return null}}
 function saveCloudShadow(){localStorage.setItem(CLOUD_SHADOW_KEY,JSON.stringify(currentCloudShadow()))}
 function sameJSON(a,b){return JSON.stringify(a)===JSON.stringify(b)}
-function cloudSettingsPayload(){return {household_id:HOUSEHOLD_ID,min_female_age_months:Number(state.herdSettings?.minFemaleAgeMonths)||0,heat_return_days:Number(state.settings?.heatWatchEnd)||24,presumed_pregnant_days:Number(state.settings?.presumedPregnant)||25,pregnancy_check_days:Number(state.settings?.pregCheck)||35,precalving_days:Number(state.settings?.preCalving)||285,term_days:Number(state.settings?.term)||295,postpartum_watch_days:Number(state.settings?.postpartumStart)||30,notification_time:(state.notifications?.time||'07:00')+':00',notif_heat_return:state.notifications?.heatReturn!==false,notif_preg_check:state.notifications?.pregCheck!==false,notif_precalving:state.notifications?.precalving!==false,notif_term:state.notifications?.term!==false,notif_postpartum:state.notifications?.postpartum!==false}}
-function applyCloudSettings(r){if(!r)return;state.herdSettings={...state.herdSettings,minFemaleAgeMonths:Number(r.min_female_age_months??state.herdSettings.minFemaleAgeMonths)};state.settings={...state.settings,heatWatchEnd:Number(r.heat_return_days??state.settings.heatWatchEnd),presumedPregnant:Number(r.presumed_pregnant_days??state.settings.presumedPregnant),pregCheck:Number(r.pregnancy_check_days??state.settings.pregCheck),preCalving:Number(r.precalving_days??state.settings.preCalving),term:Number(r.term_days??state.settings.term),postpartumStart:Number(r.postpartum_watch_days??state.settings.postpartumStart)};state.notifications={...state.notifications,time:String(r.notification_time||state.notifications.time||'07:00').slice(0,5),heatReturn:r.notif_heat_return!==false,pregCheck:r.notif_preg_check!==false,precalving:r.notif_precalving!==false,term:r.notif_term!==false,postpartum:r.notif_postpartum!==false}}
+function cloudSettingsPayload(){return {household_id:HOUSEHOLD_ID,min_female_age_months:Number(state.herdSettings?.minFemaleAgeMonths)||0,heat_return_days:Number(state.settings?.heatWatchEnd)||24,presumed_pregnant_days:Number(state.settings?.presumedPregnant)||25,pregnancy_check_days:Number(state.settings?.pregCheck)||35,precalving_days:Number(state.settings?.preCalving)||285,term_days:Number(state.settings?.term)||295,postpartum_watch_days:Number(state.settings?.postpartumStart)||30,notification_time:(state.notifications?.time||'07:00')+':00',notif_heat_return:state.notifications?.heatReturn!==false,notif_preg_check:state.notifications?.pregCheck!==false,notif_precalving:state.notifications?.precalving!==false,notif_term:state.notifications?.term!==false,notif_postpartum:state.notifications?.postpartum!==false,notif_enabled:state.notifications?.enabled===true,heat_watch_start_days:Number(state.settings?.heatWatchStart)||18,postpartum_warn_days:Number(state.settings?.postpartumWarn)||45,postpartum_late_days:Number(state.settings?.postpartumLate)||60}}
+function applyCloudSettings(r){if(!r)return;state.herdSettings={...state.herdSettings,minFemaleAgeMonths:Number(r.min_female_age_months??state.herdSettings.minFemaleAgeMonths)};state.settings={...state.settings,heatWatchEnd:Number(r.heat_return_days??state.settings.heatWatchEnd),presumedPregnant:Number(r.presumed_pregnant_days??state.settings.presumedPregnant),pregCheck:Number(r.pregnancy_check_days??state.settings.pregCheck),preCalving:Number(r.precalving_days??state.settings.preCalving),term:Number(r.term_days??state.settings.term),postpartumStart:Number(r.postpartum_watch_days??state.settings.postpartumStart),heatWatchStart:Number(r.heat_watch_start_days??state.settings.heatWatchStart),postpartumWarn:Number(r.postpartum_warn_days??state.settings.postpartumWarn),postpartumLate:Number(r.postpartum_late_days??state.settings.postpartumLate)};state.notifications={...state.notifications,enabled:r.notif_enabled===true,time:String(r.notification_time||state.notifications.time||'07:00').slice(0,5),heatReturn:r.notif_heat_return!==false,pregCheck:r.notif_preg_check!==false,precalving:r.notif_precalving!==false,term:r.notif_term!==false,postpartum:r.notif_postpartum!==false}}
 
 async function insertNewCows(list){if(!list.length)return;const payload=list.map(c=>{const p=cowPayload(c);delete p.id;return p});const rows=await cloudFetch('/rest/v1/cows',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(payload)});for(const c of list){const nat=cowNational(c);const r=rows.find(x=>(nat&&x.national_number===nat)||(!nat&&x.work_number===c.workNumber&&String(x.birth_date||'')===String(c.birthDate||'')))||rows.shift();if(r)c.cloudId=r.id}}
 async function upsertCows(list){if(!list.length)return;await cloudFetch('/rest/v1/cows?on_conflict=id',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(list.map(c=>cowPayload(c)))})}
@@ -574,7 +602,7 @@ function renderSettings(){
  $('#notificationSettings').innerHTML=`
    <div class="notification-panel">
     <div class="setting-row"><div><strong>Récap quotidien</strong><p>Une seule notification regroupée pour éviter les alertes en rafale.</p></div><label class="toggleline"><input id="notif-enabled" type="checkbox" ${n.enabled?'checked':''}> Actif</label></div>
-    <div class="setting-row"><div><strong>Heure souhaitée</strong><p>Utilisée lorsque l’application est active ou reprise. Le push serveur sera nécessaire pour une heure garantie en arrière-plan.</p></div><input id="notif-time" type="time" value="${esc(n.time||'07:00')}"></div>
+    <div class="setting-row"><div><strong>Heure souhaitée</strong><p>Le serveur Supabase enverra le récap même si l’application est fermée.</p></div><input id="notif-time" type="time" value="${esc(n.time||'07:00')}"></div>
     <div class="notif-types">
       <label><input id="notif-heatReturn" type="checkbox" ${n.heatReturn?'checked':''}> 🔁 Retours en chaleur</label>
       <label><input id="notif-pregCheck" type="checkbox" ${n.pregCheck?'checked':''}> 🩺 Diagnostics de gestation</label>
@@ -582,12 +610,13 @@ function renderSettings(){
       <label><input id="notif-term" type="checkbox" ${n.term?'checked':''}> ⚠️ Termes atteints</label>
       <label><input id="notif-postpartum" type="checkbox" ${n.postpartum?'checked':''}> 👀 Suivi post-vêlage</label>
     </div>
-    <div class="notif-actions"><button type="button" id="enableNotifBtn" class="primary compact">🔔 Autoriser</button><button type="button" id="testNotifBtn" class="ghost compact">Envoyer un test</button></div>
+    <div class="notif-actions"><button type="button" id="enableNotifBtn" class="primary compact">🔔 Activer sur cet appareil</button><button type="button" id="testServerNotifBtn" class="ghost compact">☁️ Tester appli fermée</button><button type="button" id="disableNotifBtn" class="ghost compact">Désactiver cet appareil</button></div>
     <p id="notifStatus" class="muted small"></p>
    </div>`;
  updateNotifStatus();
  $('#enableNotifBtn').onclick=requestNotifications;
- $('#testNotifBtn').onclick=()=>sendDailyNotification(true);
+ $('#testServerNotifBtn').onclick=async()=>{try{await subscribePushDevice();await testServerPush();alert('Notification push serveur envoyée. Tu peux fermer l’application pour le prochain test.')}catch(e){alert('Test push impossible : '+e.message)}};
+ $('#disableNotifBtn').onclick=disablePushDevice;
  $('#dataInfo').textContent=`Base actuelle : ${state.cows.filter(c=>c.active!==false).length} femelles présentes • ${state.cows.filter(isReproEligible).length} suivies repro • ${state.cows.filter(c=>c.active!==false&&isUnderAge(c)&&c.reproOverride!=='include').length} hors âge • ${state.cows.filter(c=>c.active===false).length} sorties • ${state.males.length} mâles • ${state.cows.filter(c=>c.estiveActive).length} en estive • ${state.locations.length} lieu(x) • source ${state.meta?.source||'locale'}`;
  const cemail=$('#cloudUserEmail'); if(cemail)cemail.textContent=cloudUserEmail()||'Non connecté';
 }
@@ -688,14 +717,15 @@ async function showNotification(title,body,tag='repro-bovine-daily'){
 }
 function updateNotifStatus(){
  const el=$('#notifStatus'); if(!el)return;
- if(!('Notification'in window)){el.textContent='Notifications non prises en charge par ce navigateur.';return}
- const p=Notification.permission; el.textContent=p==='granted'?'✅ Notifications autorisées sur cet appareil.':p==='denied'?'⛔ Notifications refusées dans les réglages du navigateur/appareil.':'🔔 Autorisation non encore accordée.';
+ if(!('Notification'in window)||!('PushManager'in window)){el.textContent='Notifications push non disponibles ici. Sur iPhone, ajoute l’app à l’écran d’accueil.';return}
+ const p=Notification.permission; el.textContent=p==='granted'?'✅ Notifications autorisées. Appuie sur « Activer sur cet appareil » pour vérifier l’abonnement push.':p==='denied'?'⛔ Notifications refusées dans les réglages du navigateur/appareil.':'🔔 Autorisation non encore accordée.';
 }
 async function requestNotifications(){
- if(!('Notification'in window)){alert('Les notifications ne sont pas disponibles dans ce navigateur. Les alertes restent visibles dans l’application.');return}
- const p=await Notification.requestPermission();
- if(p==='granted'){state.notifications.enabled=true;save(); await showNotification('Repro Bovine','Notifications activées. Les alertes du jour seront regroupées dans un récap.','repro-bovine-setup')}
- else updateNotifStatus();
+ try{
+   await subscribePushDevice();state.notifications.enabled=true;save();await upsertCloudSettings();updateNotifStatus();
+   await showNotification('Repro Bovine','Notifications push activées sur cet appareil.','repro-bovine-setup');
+   alert('Notifications activées sur cet appareil. Le serveur pourra maintenant envoyer les alertes même appli fermée.');
+ }catch(e){alert('Activation impossible : '+e.message);updateNotifStatus()}
 }
 async function sendDailyNotification(force=false){
  const prefs=state.notifications||NOTIF_DEFAULTS;
@@ -754,7 +784,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  $$('.calendar-filter-chips [data-cal-filter]').forEach(b=>b.classList.toggle('active',calendarFilters[b.dataset.calFilter]!==false));
  $$('.home-filter-chips [data-home-filter]').forEach(b=>b.classList.toggle('active',homeFilters[b.dataset.homeFilter]!==false));
  renderAll(); initCloudAuth();
- // v1.6.0: service worker remains disabled while Supabase authentication is stabilized.
+ registerPushServiceWorker().catch(e=>console.warn('Service worker',e));
  maybeDailyNotification();
  setInterval(maybeDailyNotification,60000);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')maybeDailyNotification()});
@@ -762,5 +792,4 @@ document.addEventListener('DOMContentLoaded',()=>{
  window.addEventListener('online',()=>syncCloud());
 });
 
-// v1.6.0: purge legacy PWA workers/caches once, before next auth attempt.
-if(!sessionStorage.getItem('reproV146Purge')){sessionStorage.setItem('reproV146Purge','1');clearLegacyPwaCaches();}
+if(!sessionStorage.getItem('reproV170Purge')){sessionStorage.setItem('reproV170Purge','1');clearLegacyPwaCaches();}
