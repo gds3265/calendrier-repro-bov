@@ -27,3 +27,35 @@ input[type="checkbox"],input[type="radio"]{width:auto;padding:0;margin:0;accent-
 .event-history-row .edit-event{margin-top:-3px}
 .bull-card-edit{display:grid;gap:10px}.bull-card-edit .edit-bull{justify-self:start}
 @media(max-width:540px){.dialog-actions{grid-template-columns:1fr}.event-history-row{grid-template-columns:1fr}.event-history-row .edit-event{justify-self:start}}
+/* v1.4 cloud / authentication */
+.cloud-badge{display:inline-flex;align-items:center;margin-top:3px;padding:3px 7px;border-radius:999px;background:#eee8ec;color:var(--muted);font-size:.72rem;font-weight:700}.cloud-badge.ok{background:#dcecdf;color:var(--ok)}.cloud-badge.sync{background:#e9eef9;color:#35568a}.cloud-badge.warn{background:#fff0d4;color:#855409}.cloud-panel{display:grid;gap:10px}.cloud-actions{display:flex;gap:8px;flex-wrap:wrap}.auth-dialog{max-width:440px}.auth-dialog form{padding:22px}.auth-logo{display:flex;align-items:center;gap:12px;margin-bottom:10px}.auth-logo img{width:58px;height:58px;border-radius:15px}.auth-logo h2{margin:0;font-size:1.35rem}.auth-logo p{margin:3px 0 0;color:var(--muted)}.auth-error{min-height:20px;color:var(--danger);font-weight:650}.auth-dialog::backdrop{background:rgba(33,23,30,.7)}
+@media(max-width:540px){.cloud-actions{display:grid;grid-template-columns:1fr}.cloud-actions button{width:100%}.cloud-badge{font-size:.66rem}}
+
+/* v1.4.1 password recovery */
+#passwordResetDialog .auth-error{margin-top:12px}
+#passwordResetDialog label{margin-top:14px}
+/* v1.4.9 : tri vêlage + filtres calendrier */
+.cow-sort-row{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:0 0 12px}.cow-sort-row label{margin:0;color:var(--muted);font-size:.88rem}.cow-sort-row select{width:auto;min-width:230px;padding:9px 36px 9px 11px}
+.calendar-filter-box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0}.calendar-filter-chips{display:flex;gap:8px;overflow:auto;padding:10px 0 6px}.calendar-filter-chips .chip{flex:0 0 auto}
+@media(max-width:540px){.cow-sort-row{align-items:stretch;flex-direction:column;gap:5px}.cow-sort-row select{width:100%;min-width:0}.calendar-filter-box{padding:10px}}
+/* v1.5.0 : filtres Aujourd'hui + jours calendrier cliquables */
+.home-filter-box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:0 0 12px}
+.home-filter-chips{display:flex;gap:8px;overflow:auto;padding:2px 0 8px}
+.home-filter-chips .chip{flex:0 0 auto}
+.month-cell{font:inherit;color:inherit;text-align:left;cursor:pointer}
+.month-cell:active{transform:scale(.98)}
+.month-cell:focus-visible,.day-title:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.day-title.calendar-day-open{width:100%;border:0;background:transparent;padding:7px 3px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;color:inherit}
+.day-open-hint{font-size:.75rem;color:var(--accent);font-weight:700;white-space:nowrap}
+.calendar-day-detail{padding:18px}
+.calendar-day-alerts{margin-top:14px}
+@media(max-width:540px){.home-filter-box{padding:10px}.day-open-hint{font-size:.7rem}.month-cell{min-width:0}}
+
+/* v1.5.2 - gestation estimée / incertitude / estive */
+.pregnancy-range{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pregnancy-range label{margin-top:8px}.compact-check{margin-top:10px}.gestation-info{margin-top:8px;padding:10px 12px;border-radius:12px;background:#faf5f8;border:1px solid var(--line)}@media(max-width:540px){.pregnancy-range{grid-template-columns:1fr}}
+
+
+/* v1.6.0 — Estive & localisation */
+.bottomnav{grid-template-columns:repeat(6,1fr)}
+.location-metrics{margin-top:4px}.estive-import-card{display:grid;gap:12px;margin-bottom:20px}.estive-import-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.file-button{text-align:center;cursor:pointer}.location-card{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.location-kind{display:inline-flex;padding:4px 8px;border-radius:999px;background:#eee8ec;font-size:.76rem;font-weight:700}.location-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.location-history-row{display:grid;grid-template-columns:1fr auto;gap:8px}.batch-tools{display:flex;gap:8px;margin:10px 0}.batch-cow-list{max-height:45vh;overflow:auto;border:1px solid var(--line);border-radius:12px}.batch-cow-item{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);margin:0}.batch-cow-item:last-child{border-bottom:0}.batch-cow-item input{width:auto;margin:0}.location-pill{display:inline-flex;gap:4px;align-items:center;background:#e6f2ee;color:#315f54;border-radius:999px;padding:4px 8px;font-size:.78rem;font-weight:700}.estive-pill{background:#e8efff;color:#38548a}.cow-location-box{display:grid;gap:8px}.cow-location-actions{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.cow-location-actions label{margin:0}.cow-location-actions select{margin-top:5px}
+@media(max-width:640px){.bottomnav small{font-size:.61rem}.bottomnav button span{font-size:1.12rem}.estive-import-grid{grid-template-columns:1fr}.location-actions{justify-content:flex-start}.location-card{grid-template-columns:1fr}.cow-location-actions{grid-template-columns:1fr}.location-metrics{grid-template-columns:1fr 1fr}.location-metrics .metric:last-child{grid-column:1/-1}}
