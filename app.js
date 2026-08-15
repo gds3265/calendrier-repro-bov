@@ -239,6 +239,37 @@ async function insertNewEvents(items){if(!items.length)return;const payload=item
 async function upsertEvents(items){if(!items.length)return;await cloudFetch('/rest/v1/repro_events?on_conflict=id',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(items.map(x=>eventPayload(x.c,x.e)))})}
 async function upsertCloudSettings(){await cloudFetch('/rest/v1/app_settings?on_conflict=household_id',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(cloudSettingsPayload())})}
 
+async function persistNotificationTimeNow(value){
+ const time=String(value||'').trim();
+ if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))return;
+ state.notifications={...NOTIF_DEFAULTS,...state.notifications,time};
+ localStorage.setItem(STORE,JSON.stringify(state));
+ const status=()=>document.getElementById('notifTimeSaveStatus');
+ if(status())status().textContent=`Enregistrement de ${time}…`;
+ try{
+   if(cloudSession&&navigator.onLine){
+     const rows=await cloudFetch(`/rest/v1/app_settings?household_id=eq.${HOUSEHOLD_ID}`,{
+       method:'PATCH',
+       headers:{'Prefer':'return=representation'},
+       body:JSON.stringify({notification_time:time+':00'})
+     });
+     const saved=String(rows?.[0]?.notification_time||time).slice(0,5);
+     state.notifications.time=saved;
+     localStorage.setItem(STORE,JSON.stringify(state));
+     const sh=loadCloudShadow();
+     if(sh){sh.settings={...(sh.settings||{}),notification_time:saved+':00'};localStorage.setItem(CLOUD_SHADOW_KEY,JSON.stringify(sh))}
+     if(status())status().textContent=`✅ Heure serveur enregistrée : ${saved}`;
+   }else{
+     if(status())status().textContent=`📱 Heure enregistrée sur cet appareil : ${time} • synchro cloud en attente`;
+     scheduleCloudSync();
+   }
+ }catch(err){
+   console.error('Notification time save',err);
+   if(status())status().textContent=`⚠️ ${time} enregistré localement • synchro cloud en attente`;
+   scheduleCloudSync();
+ }
+}
+
 
 function locationPayload(l){return {id:l.cloudId||undefined,household_id:HOUSEHOLD_ID,name:l.name,kind:l.kind||'parcelle',active:l.active!==false}}
 function localLocationFromRow(r,old){return {...(old||{}),id:(old?.id)||('loc-'+r.id),cloudId:r.id,name:r.name||'',kind:r.kind||'parcelle',active:r.active!==false}}
