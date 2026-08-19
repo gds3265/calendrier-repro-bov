@@ -743,27 +743,40 @@ function importHerdCSV(text,name){
  // Indexe chaque femelle avec plusieurs alias. Un alias ambigu n'est jamais utilisé.
  const aliasOwners=new Map();
  function addAlias(alias,key){if(!alias||!key)return;const a=String(alias);if(!aliasOwners.has(a))aliasOwners.set(a,new Set());aliasOwners.get(a).add(key)}
- for(const r of records.filter(r=>String(r.sex).trim().toUpperCase()==='F')){
+ function sexKind(v){const x=headerKey(v);if(!x)return '';if(x==='f'||x.startsWith('fem')||x==='2')return 'F';if(x==='m'||x.startsWith('mal')||x.startsWith('male')||x==='1')return 'M';return ''}
+ // Une femelle est reconnue soit par la colonne Sexe, soit parce que son identifiant est utilisé comme Numéro mère.
+ // On construit d'abord l'index de TOUS les animaux, puis on résout les identifiants de mère contre cet index.
+ const allAliases=new Map();
+ function addAllAlias(alias,key){if(!alias||!key)return;const a=String(alias);if(!allAliases.has(a))allAliases.set(a,new Set());allAliases.get(a).add(key)}
+ for(const r of records){
+   const key=registryIdKey(r.id)||normalizeAnimalId(r.id);if(!key)continue;
+   const nat=normalizeAnimalId(r.id),digits=nat.replace(/\D/g,''),work=normalizeWorkNumber(r.work);
+   for(const a of [nat,registryIdKey(r.id),digits,digits.length>=10?digits.slice(-10):'',work].filter(Boolean))addAllAlias(a,key);
+ }
+ function resolveFrom(map,raw){const n=normalizeAnimalId(raw),digits=n.replace(/\D/g,''),cands=[n,registryIdKey(raw),digits,digits.length>=10?digits.slice(-10):'',normalizeWorkNumber(raw)].filter(Boolean);for(const a of cands){const set=map.get(a);if(set&&set.size===1)return [...set][0]}return ''}
+ const motherKeys=new Set(records.map(r=>r.mother).filter(Boolean).map(raw=>resolveFrom(allAliases,raw)).filter(Boolean));
+ function isFemaleRecord(r){const key=registryIdKey(r.id)||normalizeAnimalId(r.id);return sexKind(r.sex)==='F'||motherKeys.has(key)}
+ for(const r of records.filter(isFemaleRecord)){
    const key=registryIdKey(r.id)||normalizeAnimalId(r.id);if(!key)continue;
    const nat=normalizeAnimalId(r.id),digits=nat.replace(/\D/g,''),work=normalizeWorkNumber(r.work);
    addAlias(nat,key);addAlias(registryIdKey(r.id),key);addAlias(digits,key);if(digits.length>=10)addAlias(digits.slice(-10),key);addAlias(work,key);
  }
- function resolveMother(raw){const n=normalizeAnimalId(raw),digits=n.replace(/\D/g,''),cands=[n,registryIdKey(raw),digits,digits.length>=10?digits.slice(-10):'',normalizeWorkNumber(raw)].filter(Boolean);for(const a of cands){const set=aliasOwners.get(a);if(set&&set.size===1)return [...set][0]}return ''}
+ function resolveMother(raw){return resolveFrom(aliasOwners,raw)}
  const births={},calvesByMother={};let linkedCalves=0,unlinkedCalves=0;
  for(const r of records){const bd=dmyToIso(r.birth);if(!r.mother||!bd)continue;const motherKey=resolveMother(r.mother);if(!motherKey){unlinkedCalves++;continue}linkedCalves++;(births[motherKey]??=[]).push(bd);(calvesByMother[motherKey]??=[]).push({id:r.id||'',birthDate:bd,sex:r.sex||'',sireId:r.sire||'',exitDate:dmyToIso(r.exit),exitCause:r.exitCause||''})}
  Object.values(births).forEach(a=>a.sort());Object.values(calvesByMother).forEach(a=>a.sort((x,y)=>x.birthDate.localeCompare(y.birthDate)));
- state.registryMaleIds=[...new Set(records.filter(r=>String(r.sex).trim().toUpperCase()==='M').map(r=>registryIdKey(r.id)).filter(Boolean))];
+ state.registryMaleIds=[...new Set(records.filter(r=>sexKind(r.sex)==='M').map(r=>registryIdKey(r.id)).filter(Boolean))];
  let added=0,updated=0,exited=0,manualKept=state.cows.filter(c=>c.source==='manual').length;
  const byId=new Map(state.cows.map(c=>[registryIdKey(c.id),c]).filter(([k])=>k));
  const byWork=new Map();for(const c of state.cows){const w=normalizeWorkNumber(c.workNumber);if(w&&!byWork.has(w))byWork.set(w,c)}
- for(const r of records.filter(r=>String(r.sex).trim().toUpperCase()==='F')){
+ for(const r of records.filter(isFemaleRecord)){
    const rid=r.id,ridKey=registryIdKey(rid),work=r.work,birth=dmyToIso(r.birth),csvExit=dmyToIso(r.exit);let c=byId.get(ridKey)||byWork.get(normalizeWorkNumber(work));
    if(!c){c=state.cows.find(x=>x.source==='manual'&&normalizeWorkNumber(x.workNumber)===normalizeWorkNumber(work)&&(!x.birthDate||!birth||x.birthDate===birth));if(c){byId.delete(registryIdKey(c.id));c.id=rid;c.source='csv';byId.set(ridKey,c)}}
    const canonical=resolveMother(rid)||ridKey,b=(births[canonical]||[]).filter(Boolean),calfRecords=calvesByMother[canonical]||[],histLast=b.at(-1)||'';
    if(c){c.workNumber=work||c.workNumber;c.name=r.name||c.name;c.birthDate=birth||c.birthDate;c.breed=r.breed||c.breed||'';c.calvingHistory=[...new Set([...(c.calvingHistory||[]),...b])].filter(Boolean).sort();c.calfRecords=calfRecords;c.lastCalving=[c.lastCalving,histLast].filter(Boolean).sort().at(-1)||'';c.calvingCount=Math.max(c.calvingCount||0,b.length);c.source='csv';if(csvExit){if(c.active!==false)exited++;c.active=false;c.exitDate=csvExit;c.exitReason=c.exitReason||'Sortie indiquée dans le CSV';c.exitOrigin='csv'}else if(c.exitOrigin!=='manual'){c.active=true;c.exitDate='';c.exitReason='';c.exitOrigin=''}updated++}
    else{state.cows.push({id:rid,workNumber:work,name:r.name,birthDate:birth,breed:r.breed||'',lastCalving:histLast,calvingCount:b.length,calvingHistory:b,calfRecords,events:[],active:!csvExit,exitDate:csvExit,exitReason:csvExit?'Sortie indiquée dans le CSV':'',exitOrigin:csvExit?'csv':'',source:'csv',reproOverride:'',estiveActive:false,estiveSeason:'',currentLocationId:'',currentLocationName:''});added++}
  }
- const oldM=new Map(state.males.map(b=>[registryIdKey(b.id),b]));const csvMales=records.filter(r=>String(r.sex).trim().toUpperCase()==='M'&&!dmyToIso(r.exit)).map(r=>{const old=oldM.get(registryIdKey(r.id));return {id:r.id,workNumber:old?.manualEdit?(old.workNumber||r.work):r.work,name:old?.manualEdit?(old.name||r.name):r.name,birthDate:dmyToIso(r.birth),activeBreeder:old?.activeBreeder||false,manualEdit:old?.manualEdit||false}});const csvIds=new Set(csvMales.map(b=>registryIdKey(b.id)));const manualMales=state.males.filter(b=>b.id?.startsWith('manual-')&&!csvIds.has(registryIdKey(b.id)));state.males=[...csvMales,...manualMales];
+ const oldM=new Map(state.males.map(b=>[registryIdKey(b.id),b]));const csvMales=records.filter(r=>sexKind(r.sex)==='M'&&!dmyToIso(r.exit)).map(r=>{const old=oldM.get(registryIdKey(r.id));return {id:r.id,workNumber:old?.manualEdit?(old.workNumber||r.work):r.work,name:old?.manualEdit?(old.name||r.name):r.name,birthDate:dmyToIso(r.birth),activeBreeder:old?.activeBreeder||false,manualEdit:old?.manualEdit||false}});const csvIds=new Set(csvMales.map(b=>registryIdKey(b.id)));const manualMales=state.males.filter(b=>b.id?.startsWith('manual-')&&!csvIds.has(registryIdKey(b.id)));state.males=[...csvMales,...manualMales];
  const underAge=state.cows.filter(c=>c.active!==false&&isUnderAge(c)&&c.reproOverride!=='include').length,cowsWith2=state.cows.filter(c=>allCalvingDates(c).length>=2).length,cowsWithHistory=state.cows.filter(c=>allCalvingDates(c).length>=1).length;
  state.meta={source:name,importedAt:dateISO(today()),lastImport:{added,updated,exited,manualKept,underAge,linkedCalves,unlinkedCalves,cowsWithHistory,cowsWith2}};save();return {added,updated,exited,manualKept,underAge,linkedCalves,unlinkedCalves,cowsWithHistory,cowsWith2};
 }
