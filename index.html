@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#7b3f61">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>Repro Bovine v1.8.1</title>
+  <title>Repro Bovine v1.8.2</title>
   <link rel="manifest" href="manifest.webmanifest?v=160">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=170">
   <link rel="apple-touch-icon" href="apple-touch-icon.png?v=160">
@@ -15,7 +15,7 @@
 <body>
   <header class="topbar">
     <div>
-      <div class="brand"><img src="icon-192.png?v=170" class="brand-icon" alt=""> Repro Bovine <span class="version-badge">v1.8.1</span></div>
+      <div class="brand"><img src="icon-192.png?v=170" class="brand-icon" alt=""> Repro Bovine <span class="version-badge">v1.8.2</span></div>
       <div id="todayLabel" class="muted small"></div>
       <div id="cloudBadge" class="cloud-badge">☁️ Connexion…</div>
     </div>
@@ -56,14 +56,14 @@
         </div>
         <div class="muted small">Les vaches sans chaleur enregistrée depuis le dernier vêlage sont masquées par défaut du calendrier.</div>
       </div>
-      <div class="calendar-nav"><button id="calPrev" class="ghost">‹</button><strong id="calTitle"></strong><button id="calNext" class="ghost">›</button></div>
+      <div class="calendar-nav"><button id="calPrev" class="ghost">‹</button><strong id="calTitle"></strong><button id="calNext" class="ghost">›</button></div><div class="print-actions"><button type="button" id="printCalendarBtn" class="ghost compact">🖨️ Imprimer le mois</button></div>
       <div id="calendarContent"></div>
     </section>
 
     <section id="view-cows" class="view">
       <div class="section-head"><div class="searchbox cow-search-main"><span>🔎</span><input id="cowSearch" placeholder="Nom ou numéro de travail" autocomplete="off"></div><button id="addCowBtn" class="primary compact">＋ Vache</button></div>
       <div class="chips"><button class="chip active" data-cow-filter="all">Toutes</button><button class="chip" data-cow-filter="pregnant">Pleines</button><button class="chip" data-cow-filter="watch">À surveiller</button><button class="chip" data-cow-filter="postpartum">Post-vêlage</button><button class="chip" data-cow-filter="postabortion">Post-avortement</button><button class="chip" data-cow-filter="ivv">IVV longs</button><button class="chip" data-cow-filter="underage">Hors âge</button><button class="chip" data-cow-filter="excluded">Exclues</button><button class="chip" data-cow-filter="inactive">Sorties</button></div>
-      <div class="cow-sort-row"><label for="cowSort">Trier par</label><select id="cowSort"><option value="priority">Priorité chronologique</option><option value="calving">Prochaine mise bas présumée</option><option value="lastcalving">Dernier vêlage (plus ancien d’abord)</option><option value="ivv">IVV théorique (plus long d’abord)</option><option value="work">N° de travail</option><option value="name">Nom</option></select></div>
+      <div class="print-actions"><button type="button" id="printCowsBtn" class="ghost compact">🖨️ Imprimer la liste affichée</button></div><div class="cow-sort-row"><label for="cowSort">Trier par</label><select id="cowSort"><option value="priority">Priorité chronologique</option><option value="calving">Prochaine mise bas présumée</option><option value="lastcalving">Dernier vêlage (plus ancien d’abord)</option><option value="ivv">IVV théorique (plus long d’abord)</option><option value="work">N° de travail</option><option value="name">Nom</option></select></div>
       <div id="cowList" class="cards"></div>
     </section>
 
@@ -77,7 +77,7 @@
         </div>
         <div class="repro-period-actions"><button type="button" id="reproLast12" class="primary compact">12 derniers mois</button><button type="button" id="reproAllPeriod" class="ghost compact">Toute la période disponible</button></div>
       </div>
-      <div id="reproReport"></div>
+      <div class="print-actions"><button type="button" id="printReproBtn" class="ghost compact">🖨️ Imprimer / PDF le bilan</button></div><div id="reproReport"></div>
     </section>
 
     <section id="view-locations" class="view">
@@ -270,6 +270,6 @@
 
   <script src="initial-data.js?v=160"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2'"></script>
-  <script src="app.js?v=177"></script>
+  <script src="app.js?v=182"></script>
 </body>
 </html>

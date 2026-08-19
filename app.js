@@ -895,6 +895,26 @@ function renderReproReport(){
 function setReportLast12(){const p=defaultReportPeriod();$('#reproStart').value=p.start;$('#reproEnd').value=p.end;renderReproReport()}
 function setReportAll(){const b=reportDateBounds();$('#reproStart').value=b.min;$('#reproEnd').value=b.end;renderReproReport()}
 
+
+
+// --- Impression / PDF v1.8.2 ---
+function openPrintDocument(title, bodyHtml, landscape=false){
+  const w=window.open('','_blank');
+  if(!w){alert("L’impression a été bloquée par le navigateur. Autorise les fenêtres pour cette application puis réessaie.");return;}
+  const css=`@page{size:${landscape?'A4 landscape':'A4 portrait'};margin:10mm}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#262229;margin:0;font-size:11px}h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:14px 0 7px}.print-meta{color:#6f6870;margin-bottom:12px}.cards{display:block}.card,.metric{border:1px solid #ddd;border-radius:8px;padding:8px;margin:0 0 6px;break-inside:avoid}.cow-card{display:flex;width:100%;justify-content:space-between;text-align:left;background:white;color:#222}.cow-name{font-weight:700}.cow-sub,.muted,small{color:#6f6870}.badge,.score-pill{display:inline-block;border:1px solid #ccc;border-radius:12px;padding:2px 6px}.repro-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.repro-metrics .metric strong{display:block;font-size:18px}.repro-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.repro-class-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee}.repro-table{width:100%;border-collapse:collapse;font-size:9px}.repro-table th,.repro-table td{border:1px solid #ddd;padding:4px;vertical-align:top}.repro-table th{background:#f4f0f3}.repro-toolbar,.print-actions,button,.repro-open-cow{display:none!important}.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.month-grid>div.muted{text-align:center;font-weight:700}.month-cell{min-height:92px;border:1px solid #ccc;border-radius:4px;padding:4px;background:#fff;text-align:left;display:block;color:#222}.month-cell .n{font-weight:700;font-size:12px;margin-bottom:3px}.month-cell div:not(.n){font-size:8px;line-height:1.25;margin:1px 0}.month-cell .dot{display:inline-block;width:4px;height:4px;border-radius:50%;background:#777;margin-right:2px}.report-note{margin-top:8px;padding:7px;border:1px solid #ddd;border-radius:6px}.section-head{display:flex;justify-content:space-between;align-items:center}.empty{padding:8px;color:#777}`;
+  w.document.open();w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${css}</style></head><body><h1>${esc(title)}</h1><div class="print-meta">Repro Bovine • ${frDate(dateISO(today()))}</div>${bodyHtml}<script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);w.document.close();
+}
+function printableMonthHtml(){
+ const start=new Date(calDate);start.setDate(1);const y=start.getFullYear(),m=start.getMonth(),first=(start.getDay()+6)%7,count=new Date(y,m+1,0).getDate();
+ let html='<div class="month-grid">'+['L','M','M','J','V','S','D'].map(x=>`<div class="muted">${x}</div>`).join('');
+ for(let i=0;i<first;i++)html+='<div></div>';
+ for(let d=1;d<=count;d++){const dt=new Date(y,m,d,12),iso=dateISO(dt),al=calendarAlertsForDay(iso);html+=`<div class="month-cell"><div class="n">${d}</div>${al.length?al.map(x=>`<div>• ${esc(x.cow.workNumber||'')} ${esc(x.cow.name||'')} — ${esc(x.title||'')}</div>`).join(''):'<div class="muted">—</div>'}</div>`}
+ return html+'</div>';
+}
+function printCalendarMonth(){const d=new Date(calDate);d.setDate(1);openPrintDocument('Calendrier mensuel — '+frDate(d,{month:'long',year:'numeric'}),printableMonthHtml(),true)}
+function printCowList(){const host=$('#cowList');if(!host)return;const filterLabel=$(`.chips [data-cow-filter="${cowFilter}"]`)?.textContent?.trim()||'Liste';const sortLabel=$('#cowSort')?.selectedOptions?.[0]?.textContent||'';openPrintDocument('Liste des vaches — '+filterLabel,`<div class="print-meta">Tri : ${esc(sortLabel)}</div><div class="cards">${host.innerHTML}</div>`,false)}
+function printReproReport(){const host=$('#reproReport');if(!host)return;const start=$('#reproStart')?.value||'',end=$('#reproEnd')?.value||'';openPrintDocument('Bilan reproduction',`<div class="print-meta">Période : ${start?frDate(start):'—'} → ${end?frDate(end):'—'}</div>${host.innerHTML}`,true)}
+
 function renderAll(){renderHome();renderCows();renderLocations();renderBulls();renderSettings();renderCalendar();renderReproReport()}
 function switchView(v){$$('.view').forEach(x=>x.classList.remove('active')); $(`#view-${v}`).classList.add('active'); $$('.bottomnav button').forEach(b=>b.classList.toggle('active',b.dataset.view===v)); if(v==='cows')renderCows(); if(v==='calendar')renderCalendar(); if(v==='locations')renderLocations(); if(v==='report')renderReproReport()}
 
@@ -938,7 +958,9 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#calPrev').onclick=()=>{calDate=addDays(calDate,calMode==='day'?-1:calMode==='week'?-7:-30);renderCalendar()}; $('#calNext').onclick=()=>{calDate=addDays(calDate,calMode==='day'?1:calMode==='week'?7:30);renderCalendar()};
  $$('.calendar-filter-chips [data-cal-filter]').forEach(b=>b.classList.toggle('active',calendarFilters[b.dataset.calFilter]!==false));
  $$('.home-filter-chips [data-home-filter]').forEach(b=>b.classList.toggle('active',homeFilters[b.dataset.homeFilter]!==false));
- renderAll(); initCloudAuth();
+ 
+ $('#printCalendarBtn')?.addEventListener('click',printCalendarMonth); $('#printCowsBtn')?.addEventListener('click',printCowList); $('#printReproBtn')?.addEventListener('click',printReproReport);
+renderAll(); initCloudAuth();
  registerPushServiceWorker().catch(e=>console.warn('Service worker',e));
  maybeDailyNotification();
  setInterval(maybeDailyNotification,60000);
