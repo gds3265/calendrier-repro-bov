@@ -717,22 +717,27 @@ function addEventFromForm(e){e.preventDefault(); const c=state.cows.find(x=>x.id
 function parseCSV(text){
  const rows=[]; let row=[],cell='',q=false; for(let i=0;i<text.length;i++){const ch=text[i],n=text[i+1]; if(ch==='"'){if(q&&n==='"'){cell+='"';i++}else q=!q}else if(ch===';'&&!q){row.push(cell);cell=''}else if((ch==='\n'||ch==='\r')&&!q){if(ch==='\r'&&n==='\n')i++; row.push(cell);cell=''; if(row.some(x=>x!==''))rows.push(row);row=[]}else cell+=ch} if(cell||row.length){row.push(cell);rows.push(row)} return rows;
 }
-function csvClean(x){x=(x||'').trim(); const m=x.match(/^="(.*)"$/s); return m?m[1]:x}
+function csvClean(x){x=(x||'').replace(/^\uFEFF/,'').trim(); const m=x.match(/^="(.*)"$/s); return m?m[1]:x}
 function dmyToIso(s){s=(s||'').trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:''}
+// Les exports GDS ne présentent pas toujours les identifiants sous la même forme
+// (ex. "FR 65...", "FR65..." ou uniquement les 10 chiffres). Pour rattacher
+// sans ambiguïté les veaux à leur mère et les pères aux mâles du registre, on compare
+// une clé nationale normalisée basée sur les 10 derniers chiffres lorsqu'ils existent.
+function registryIdKey(v){const n=normalizeAnimalId(v);if(!n)return '';const digits=n.replace(/\D/g,'');return digits.length>=10?digits.slice(-10):n.replace(/^FR/,'')}
 function importHerdCSV(text,name){
  const rows=parseCSV(text); if(rows.length<2)throw Error('CSV vide'); const head=rows[0].map(csvClean); const idx=n=>head.indexOf(n); const need=['Identifiant bovin','Numéro travail','Date naissance','Sexe','Nom','Numéro mère','Date sortie']; if(need.some(n=>idx(n)<0))throw Error('Colonnes GDS attendues non trouvées');
  const records=rows.slice(1).map(r=>Object.fromEntries(head.map((h,i)=>[h,csvClean(r[i]||'')])));
  const births={},calvesByMother={};
- records.forEach(r=>{const mother=r['Numéro mère'],bd=dmyToIso(r['Date naissance']);if(mother&&bd){(births[mother]??=[]).push(bd);(calvesByMother[mother]??=[]).push({id:r['Identifiant bovin']||'',birthDate:bd,sex:r.Sexe||'',sireId:r['Numéro père']||'',exitDate:dmyToIso(r['Date sortie']),exitCause:r['Cause de sortie']||''})}});
+ records.forEach(r=>{const motherKey=registryIdKey(r['Numéro mère']),bd=dmyToIso(r['Date naissance']);if(motherKey&&bd){(births[motherKey]??=[]).push(bd);(calvesByMother[motherKey]??=[]).push({id:r['Identifiant bovin']||'',birthDate:bd,sex:r.Sexe||'',sireId:r['Numéro père']||'',exitDate:dmyToIso(r['Date sortie']),exitCause:r['Cause de sortie']||''})}});
  Object.values(births).forEach(a=>a.sort());Object.values(calvesByMother).forEach(a=>a.sort((x,y)=>x.birthDate.localeCompare(y.birthDate)));
- state.registryMaleIds=[...new Set(records.filter(r=>r.Sexe==='M').map(r=>r['Identifiant bovin']).filter(Boolean))];
+ state.registryMaleIds=[...new Set(records.filter(r=>String(r.Sexe||'').trim().toUpperCase()==='M').map(r=>registryIdKey(r['Identifiant bovin'])).filter(Boolean))];
  let added=0,updated=0,exited=0,manualKept=state.cows.filter(c=>c.source==='manual').length;
- const byId=new Map(state.cows.map(c=>[c.id,c]));
- for(const r of records.filter(r=>r.Sexe==='F')){
-   const rid=r['Identifiant bovin'], work=r['Numéro travail'], birth=dmyToIso(r['Date naissance']), csvExit=dmyToIso(r['Date sortie']);
-   let c=byId.get(rid);
-   if(!c){ c=state.cows.find(x=>x.source==='manual'&&x.workNumber===work&&(!x.birthDate||!birth||x.birthDate===birth)); if(c){byId.delete(c.id); c.id=rid; c.source='csv'; byId.set(rid,c);} }
-   const b=(births[rid]||[]).filter(Boolean), calfRecords=calvesByMother[rid]||[], histLast=b.at(-1)||'';
+ const byId=new Map(state.cows.map(c=>[registryIdKey(c.id),c]).filter(([k])=>k));
+ for(const r of records.filter(r=>String(r.Sexe||'').trim().toUpperCase()==='F')){
+   const rid=r['Identifiant bovin'], ridKey=registryIdKey(rid), work=r['Numéro travail'], birth=dmyToIso(r['Date naissance']), csvExit=dmyToIso(r['Date sortie']);
+   let c=byId.get(ridKey);
+   if(!c){ c=state.cows.find(x=>x.source==='manual'&&normalizeWorkNumber(x.workNumber)===normalizeWorkNumber(work)&&(!x.birthDate||!birth||x.birthDate===birth)); if(c){byId.delete(registryIdKey(c.id)); c.id=rid; c.source='csv'; byId.set(ridKey,c);} }
+   const b=(births[ridKey]||[]).filter(Boolean), calfRecords=calvesByMother[ridKey]||[], histLast=b.at(-1)||'';
    if(c){ c.workNumber=work||c.workNumber;c.name=r.Nom||c.name;c.birthDate=birth||c.birthDate;c.breed=r['Type racial']||c.breed||'';c.calvingHistory=[...new Set([...(c.calvingHistory||[]),...b])].filter(Boolean).sort();c.calfRecords=calfRecords;c.lastCalving=[c.lastCalving,histLast].filter(Boolean).sort().at(-1)||'';c.calvingCount=Math.max(c.calvingCount||0,b.length);c.source='csv'; if(csvExit){if(c.active!==false)exited++;c.active=false;c.exitDate=csvExit;c.exitReason=c.exitReason||'Sortie indiquée dans le CSV';c.exitOrigin='csv'} else if(c.exitOrigin!=='manual'){c.active=true;c.exitDate='';c.exitReason='';c.exitOrigin=''}; updated++;
    } else {state.cows.push({id:rid,workNumber:work,name:r.Nom,birthDate:birth,breed:r['Type racial']||'',lastCalving:histLast,calvingCount:b.length,calvingHistory:b,calfRecords:calfRecords,events:[],active:!csvExit,exitDate:csvExit,exitReason:csvExit?'Sortie indiquée dans le CSV':'',exitOrigin:csvExit?'csv':'',source:'csv',reproOverride:'',estiveActive:false,estiveSeason:'',currentLocationId:'',currentLocationName:''});added++;}
  }
@@ -808,7 +813,7 @@ function presentAt(c,end){if(c.active!==false)return true;return !!c.exitDate&&c
 function normId(s){return String(s||'').replace(/[^0-9A-Za-z]/g,'').toUpperCase()}
 function isDeathCause(s){const n=norm(s);return /mort|deces|decede|euthan|crev/.test(n)||['m','d','dc','dec'].includes(n)}
 function calfDiedUnder6(calf){if(!calf?.birthDate||!calf?.exitDate||!isDeathCause(calf.exitCause))return false;const d=diffDays(calf.exitDate,calf.birthDate);return d>=0&&d<183}
-function calfStats(c,start='',end=''){const all=Array.isArray(c.calfRecords)?c.calfRecords:[],list=start&&end?all.filter(v=>v.birthDate>=start&&v.birthDate<=end):all,maleIds=new Set((state.registryMaleIds||[]).map(normId).filter(Boolean));const dead=list.filter(calfDiedUnder6),withSire=list.filter(v=>normId(v.sireId)),probAI=withSire.filter(v=>!maleIds.has(normId(v.sireId)));return {born:list.length,dead:dead.length,withSire:withSire.length,probAI:probAI.length}}
+function calfStats(c,start='',end=''){const all=Array.isArray(c.calfRecords)?c.calfRecords:[],list=start&&end?all.filter(v=>v.birthDate>=start&&v.birthDate<=end):all,maleIds=new Set((state.registryMaleIds||[]).map(registryIdKey).filter(Boolean));const dead=list.filter(calfDiedUnder6),withSire=list.filter(v=>registryIdKey(v.sireId)),probAI=withSire.filter(v=>!maleIds.has(registryIdKey(v.sireId)));return {born:list.length,dead:dead.length,withSire:withSire.length,probAI:probAI.length}}
 function reportScore(c){
  let score=100;const reasons=[],afc=ageFirstCalvingMonths(c),ivs=allIVVs(c),vals=ivs.map(x=>x.days),avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null,max=vals.length?Math.max(...vals):null,cs=calfStats(c);
  if(afc!==null){if(afc>36){score-=20;reasons.push('1er vêlage >36 m : −20')}else if(afc>28){score-=8;reasons.push('1er vêlage >28–36 m : −8')}}

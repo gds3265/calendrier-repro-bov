@@ -1,4 +1,4 @@
-V1.7.8 : calcul de l’IVV théorique à partir de la dernière saillie/IA observée, affichage dans la fiche vache, filtre IVV longs, tri par IVV théorique et seuils de performance paramétrables/synchronisables (patch Supabase v1.7.8).
+V1.7.9 : calcul de l’IVV théorique à partir de la dernière saillie/IA observée, affichage dans la fiche vache, filtre IVV longs, tri par IVV théorique et seuils de performance paramétrables/synchronisables (patch Supabase v1.7.9).
 V1.5.0 : tri des vaches par prochaine mise bas présumée et filtres du calendrier. Les alertes post-vêlage sans chaleur sont masquées du calendrier par défaut, mais restent disponibles via le filtre dédié.
 V1.4.8 : connexion/authentification refaite avec le client officiel Supabase JS v2 (CDN avec secours jsDelivr/unpkg). Test réseau indépendant du mot de passe.
 Repro Bovine v1.4.1
@@ -116,11 +116,11 @@ Les animaux absents de la base active sont signalés comme non reconnus, mais au
 
 V1.6.1 : correctif import CSV estive Excel (="..."), reconnaissance robuste par identifiant national, puis numéro de travail et nom + numéro de travail.
 
-V1.7.8 : ajout de l’onglet Bilan repro basé sur les règles Audit bovin (période, taux de vêlage >24/>36 mois, primipares, IVV, IVV1–IVV2, âge 1er vêlage, classes, score et liste de vaches à surveiller).
-Pour bénéficier des IVV historiques, IVV1–IVV2 et de l’âge réel au premier vêlage dans le Bilan repro, réimporter le CSV troupeau une fois après la mise à jour : v1.7.8 conserve désormais toutes les dates de naissance des veaux rattachées à leur mère dans calving_history.
+V1.7.9 : ajout de l’onglet Bilan repro basé sur les règles Audit bovin (période, taux de vêlage >24/>36 mois, primipares, IVV, IVV1–IVV2, âge 1er vêlage, classes, score et liste de vaches à surveiller).
+Pour bénéficier des IVV historiques, IVV1–IVV2 et de l’âge réel au premier vêlage dans le Bilan repro, réimporter le CSV troupeau une fois après la mise à jour : v1.7.9 conserve désormais toutes les dates de naissance des veaux rattachées à leur mère dans calving_history.
 Patch Supabase à exécuter : supabase_v1_7_7_bilan_repro.sql.
 
-V1.7.8 — BILAN REPRO COMPLET
+V1.7.9 — BILAN REPRO COMPLET
 - Import du même registre bovin complet que dans Audit Bovin.
 - Conservation des veaux par mère : naissance, père, date/cause de sortie.
 - Mortalité veaux <6 mois : décès avant 183 jours.
@@ -128,3 +128,10 @@ V1.7.8 — BILAN REPRO COMPLET
 - Filtre / tri des mères avec au moins 2 veaux morts <6 mois.
 - Veaux probablement issus d'IA : père renseigné absent des mâles du registre importé (heuristique).
 - Le fichier supabase_v1_7_8_BILAN_REPRO_COMPLET.sql remplace les patchs 1.7.6/1.7.7/1.7.8 si ceux-ci n'ont pas encore été exécutés.
+
+V1.7.9 — CORRECTION IMPORT REGISTRE / IVV RÉELS
+- Normalisation renforcée des identifiants bovins (FR + espaces / sans FR / 10 chiffres).
+- Rattachement des veaux à leur mère corrigé avant reconstruction de calving_history.
+- Recalcul des IVV réels et IVV1–IVV2 après réimport du registre complet.
+- Même correction de normalisation pour l'heuristique « IA probable ».
+- Aucun nouveau patch Supabase n'est nécessaire si le patch consolidé v1.7.8 a déjà été exécuté.
