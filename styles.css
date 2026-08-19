@@ -91,3 +91,17 @@ body{min-height:100dvh;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px
 .repro-period-card{display:grid;gap:10px;margin-bottom:14px}.repro-period-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.repro-period-grid label{margin:0}.repro-period-actions{display:flex;gap:8px;flex-wrap:wrap}.repro-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.repro-metrics .metric{min-height:108px}.repro-metrics .metric strong{font-size:1.55rem}.repro-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.repro-class-list{display:grid;gap:8px}.repro-class-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}.repro-class-row:last-child{border-bottom:0}.repro-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff}.repro-table{width:100%;border-collapse:collapse;min-width:760px}.repro-table th,.repro-table td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:.86rem;vertical-align:middle}.repro-table th{position:sticky;top:0;background:#faf7f9;z-index:1}.repro-table tr:last-child td{border-bottom:0}.repro-toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:12px 0}.repro-toolbar label{margin:0;min-width:210px;flex:1}.score-pill{display:inline-flex;border-radius:999px;padding:5px 9px;font-weight:800;font-size:.8rem}.score-pill.ok{background:#dcecdf;color:var(--ok)}.score-pill.warn{background:#fff0d4;color:#855409}.score-pill.danger{background:#f7dadd;color:#8e2636}.report-note{margin-top:10px;padding:10px 12px;border-radius:12px;background:#faf7f9;border:1px solid var(--line)}
 @media(max-width:760px){.repro-metrics{grid-template-columns:1fr 1fr}.repro-grid-2{grid-template-columns:1fr}.bottomnav small{font-size:.54rem}.bottomnav button span{font-size:1.02rem}}
 @media(max-width:480px){.repro-period-grid{grid-template-columns:1fr}.repro-metrics{grid-template-columns:1fr 1fr}}
+
+/* v1.8.0 — correctif iPhone navigation : ancrage au bord inférieur réel */
+html{min-height:100%;background:var(--bg)}
+body{min-height:100%;padding-bottom:calc(78px + env(safe-area-inset-bottom,0px))}
+.bottomnav{
+  position:fixed !important;
+  left:0 !important;right:0 !important;
+  top:auto !important;bottom:0 !important;
+  height:auto !important;min-height:72px;
+  padding-bottom:env(safe-area-inset-bottom,0px) !important;
+  z-index:1000 !important;
+  background:rgba(255,255,255,.98) !important;
+  transform:none !important;-webkit-transform:none !important;
+}

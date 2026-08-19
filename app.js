@@ -105,7 +105,7 @@ async function clearLegacyPwaCaches(){
 function urlBase64ToUint8Array(base64String){const padding='='.repeat((4-base64String.length%4)%4),base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(base64);return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)))}
 async function registerPushServiceWorker(){
  if(!('serviceWorker' in navigator))throw new Error('Service worker non pris en charge sur cet appareil.');
- const reg=await navigator.serviceWorker.register('./sw.js?v=178',{scope:'./'});
+ const reg=await navigator.serviceWorker.register('./sw.js?v=180',{scope:'./'});
  await navigator.serviceWorker.ready;return reg;
 }
 async function savePushSubscription(sub){
@@ -714,35 +714,58 @@ function addEventFromForm(e){e.preventDefault(); const c=state.cows.find(x=>x.id
  c.events=c.events||[];c.events.push(ev);if(type==='calving')c.lastCalving=date;save();closeEventDialog();
 }
 
+function detectCsvDelimiter(text){
+ const first=String(text||'').replace(/^\uFEFF/,'').split(/\r?\n/).find(x=>x.trim())||'';
+ const counts={';':0,',':0,'\t':0};let q=false;
+ for(const ch of first){if(ch==='"')q=!q;else if(!q&&Object.prototype.hasOwnProperty.call(counts,ch))counts[ch]++}
+ return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]||';';
+}
 function parseCSV(text){
- const rows=[]; let row=[],cell='',q=false; for(let i=0;i<text.length;i++){const ch=text[i],n=text[i+1]; if(ch==='"'){if(q&&n==='"'){cell+='"';i++}else q=!q}else if(ch===';'&&!q){row.push(cell);cell=''}else if((ch==='\n'||ch==='\r')&&!q){if(ch==='\r'&&n==='\n')i++; row.push(cell);cell=''; if(row.some(x=>x!==''))rows.push(row);row=[]}else cell+=ch} if(cell||row.length){row.push(cell);rows.push(row)} return rows;
+ const delim=detectCsvDelimiter(text),rows=[]; let row=[],cell='',q=false;
+ for(let i=0;i<text.length;i++){const ch=text[i],n=text[i+1]; if(ch==='"'){if(q&&n==='"'){cell+='"';i++}else q=!q}else if(ch===delim&&!q){row.push(cell);cell=''}else if((ch==='\n'||ch==='\r')&&!q){if(ch==='\r'&&n==='\n')i++; row.push(cell);cell=''; if(row.some(x=>x!==''))rows.push(row);row=[]}else cell+=ch}
+ if(cell||row.length){row.push(cell);rows.push(row)} return rows;
 }
 function csvClean(x){x=(x||'').replace(/^\uFEFF/,'').trim(); const m=x.match(/^="(.*)"$/s); return m?m[1]:x}
-function dmyToIso(s){s=(s||'').trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:''}
-// Les exports GDS ne présentent pas toujours les identifiants sous la même forme
-// (ex. "FR 65...", "FR65..." ou uniquement les 10 chiffres). Pour rattacher
-// sans ambiguïté les veaux à leur mère et les pères aux mâles du registre, on compare
-// une clé nationale normalisée basée sur les 10 derniers chiffres lorsqu'ils existent.
+function headerKey(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'')}
+function dmyToIso(s){s=(s||'').trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;let m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(m)return `${m[3]}-${m[2]}-${m[1]}`;m=s.match(/^(\d{2})-(\d{2})-(\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:''}
 function registryIdKey(v){const n=normalizeAnimalId(v);if(!n)return '';const digits=n.replace(/\D/g,'');return digits.length>=10?digits.slice(-10):n.replace(/^FR/,'')}
 function importHerdCSV(text,name){
- const rows=parseCSV(text); if(rows.length<2)throw Error('CSV vide'); const head=rows[0].map(csvClean); const idx=n=>head.indexOf(n); const need=['Identifiant bovin','Numéro travail','Date naissance','Sexe','Nom','Numéro mère','Date sortie']; if(need.some(n=>idx(n)<0))throw Error('Colonnes GDS attendues non trouvées');
- const records=rows.slice(1).map(r=>Object.fromEntries(head.map((h,i)=>[h,csvClean(r[i]||'')])));
- const births={},calvesByMother={};
- records.forEach(r=>{const motherKey=registryIdKey(r['Numéro mère']),bd=dmyToIso(r['Date naissance']);if(motherKey&&bd){(births[motherKey]??=[]).push(bd);(calvesByMother[motherKey]??=[]).push({id:r['Identifiant bovin']||'',birthDate:bd,sex:r.Sexe||'',sireId:r['Numéro père']||'',exitDate:dmyToIso(r['Date sortie']),exitCause:r['Cause de sortie']||''})}});
+ const rows=parseCSV(text);if(rows.length<2)throw Error('CSV vide');
+ const rawHead=rows[0].map(csvClean),hk=rawHead.map(headerKey);
+ const aliases={
+  id:['identifiantbovin','identifiant','nnational','numeronational'],work:['numerotravail','ntravail'],birth:['datenaissance'],sex:['sexe'],name:['nom'],mother:['numeromere','nmere','mere'],sire:['numeropere','npere','pere'],breed:['typeracial','race'],exit:['datesortie'],exitCause:['causedesortie']
+ };
+ const col={};for(const [k,vals] of Object.entries(aliases)){col[k]=hk.findIndex(x=>vals.includes(x))}
+ for(const k of ['id','work','birth','sex','mother'])if(col[k]<0)throw Error(`Colonne attendue non trouvée : ${k}`);
+ const records=rows.slice(1).map(r=>({
+  id:csvClean(r[col.id]||''),work:csvClean(r[col.work]||''),birth:csvClean(r[col.birth]||''),sex:csvClean(r[col.sex]||''),name:col.name>=0?csvClean(r[col.name]||''):'',mother:csvClean(r[col.mother]||''),sire:col.sire>=0?csvClean(r[col.sire]||''):'',breed:col.breed>=0?csvClean(r[col.breed]||''):'',exit:col.exit>=0?csvClean(r[col.exit]||''):'',exitCause:col.exitCause>=0?csvClean(r[col.exitCause]||''):''
+ })).filter(r=>r.id||r.work);
+ // Indexe chaque femelle avec plusieurs alias. Un alias ambigu n'est jamais utilisé.
+ const aliasOwners=new Map();
+ function addAlias(alias,key){if(!alias||!key)return;const a=String(alias);if(!aliasOwners.has(a))aliasOwners.set(a,new Set());aliasOwners.get(a).add(key)}
+ for(const r of records.filter(r=>String(r.sex).trim().toUpperCase()==='F')){
+   const key=registryIdKey(r.id)||normalizeAnimalId(r.id);if(!key)continue;
+   const nat=normalizeAnimalId(r.id),digits=nat.replace(/\D/g,''),work=normalizeWorkNumber(r.work);
+   addAlias(nat,key);addAlias(registryIdKey(r.id),key);addAlias(digits,key);if(digits.length>=10)addAlias(digits.slice(-10),key);addAlias(work,key);
+ }
+ function resolveMother(raw){const n=normalizeAnimalId(raw),digits=n.replace(/\D/g,''),cands=[n,registryIdKey(raw),digits,digits.length>=10?digits.slice(-10):'',normalizeWorkNumber(raw)].filter(Boolean);for(const a of cands){const set=aliasOwners.get(a);if(set&&set.size===1)return [...set][0]}return ''}
+ const births={},calvesByMother={};let linkedCalves=0,unlinkedCalves=0;
+ for(const r of records){const bd=dmyToIso(r.birth);if(!r.mother||!bd)continue;const motherKey=resolveMother(r.mother);if(!motherKey){unlinkedCalves++;continue}linkedCalves++;(births[motherKey]??=[]).push(bd);(calvesByMother[motherKey]??=[]).push({id:r.id||'',birthDate:bd,sex:r.sex||'',sireId:r.sire||'',exitDate:dmyToIso(r.exit),exitCause:r.exitCause||''})}
  Object.values(births).forEach(a=>a.sort());Object.values(calvesByMother).forEach(a=>a.sort((x,y)=>x.birthDate.localeCompare(y.birthDate)));
- state.registryMaleIds=[...new Set(records.filter(r=>String(r.Sexe||'').trim().toUpperCase()==='M').map(r=>registryIdKey(r['Identifiant bovin'])).filter(Boolean))];
+ state.registryMaleIds=[...new Set(records.filter(r=>String(r.sex).trim().toUpperCase()==='M').map(r=>registryIdKey(r.id)).filter(Boolean))];
  let added=0,updated=0,exited=0,manualKept=state.cows.filter(c=>c.source==='manual').length;
  const byId=new Map(state.cows.map(c=>[registryIdKey(c.id),c]).filter(([k])=>k));
- for(const r of records.filter(r=>String(r.Sexe||'').trim().toUpperCase()==='F')){
-   const rid=r['Identifiant bovin'], ridKey=registryIdKey(rid), work=r['Numéro travail'], birth=dmyToIso(r['Date naissance']), csvExit=dmyToIso(r['Date sortie']);
-   let c=byId.get(ridKey);
-   if(!c){ c=state.cows.find(x=>x.source==='manual'&&normalizeWorkNumber(x.workNumber)===normalizeWorkNumber(work)&&(!x.birthDate||!birth||x.birthDate===birth)); if(c){byId.delete(registryIdKey(c.id)); c.id=rid; c.source='csv'; byId.set(ridKey,c);} }
-   const b=(births[ridKey]||[]).filter(Boolean), calfRecords=calvesByMother[ridKey]||[], histLast=b.at(-1)||'';
-   if(c){ c.workNumber=work||c.workNumber;c.name=r.Nom||c.name;c.birthDate=birth||c.birthDate;c.breed=r['Type racial']||c.breed||'';c.calvingHistory=[...new Set([...(c.calvingHistory||[]),...b])].filter(Boolean).sort();c.calfRecords=calfRecords;c.lastCalving=[c.lastCalving,histLast].filter(Boolean).sort().at(-1)||'';c.calvingCount=Math.max(c.calvingCount||0,b.length);c.source='csv'; if(csvExit){if(c.active!==false)exited++;c.active=false;c.exitDate=csvExit;c.exitReason=c.exitReason||'Sortie indiquée dans le CSV';c.exitOrigin='csv'} else if(c.exitOrigin!=='manual'){c.active=true;c.exitDate='';c.exitReason='';c.exitOrigin=''}; updated++;
-   } else {state.cows.push({id:rid,workNumber:work,name:r.Nom,birthDate:birth,breed:r['Type racial']||'',lastCalving:histLast,calvingCount:b.length,calvingHistory:b,calfRecords:calfRecords,events:[],active:!csvExit,exitDate:csvExit,exitReason:csvExit?'Sortie indiquée dans le CSV':'',exitOrigin:csvExit?'csv':'',source:'csv',reproOverride:'',estiveActive:false,estiveSeason:'',currentLocationId:'',currentLocationName:''});added++;}
+ const byWork=new Map();for(const c of state.cows){const w=normalizeWorkNumber(c.workNumber);if(w&&!byWork.has(w))byWork.set(w,c)}
+ for(const r of records.filter(r=>String(r.sex).trim().toUpperCase()==='F')){
+   const rid=r.id,ridKey=registryIdKey(rid),work=r.work,birth=dmyToIso(r.birth),csvExit=dmyToIso(r.exit);let c=byId.get(ridKey)||byWork.get(normalizeWorkNumber(work));
+   if(!c){c=state.cows.find(x=>x.source==='manual'&&normalizeWorkNumber(x.workNumber)===normalizeWorkNumber(work)&&(!x.birthDate||!birth||x.birthDate===birth));if(c){byId.delete(registryIdKey(c.id));c.id=rid;c.source='csv';byId.set(ridKey,c)}}
+   const canonical=resolveMother(rid)||ridKey,b=(births[canonical]||[]).filter(Boolean),calfRecords=calvesByMother[canonical]||[],histLast=b.at(-1)||'';
+   if(c){c.workNumber=work||c.workNumber;c.name=r.name||c.name;c.birthDate=birth||c.birthDate;c.breed=r.breed||c.breed||'';c.calvingHistory=[...new Set([...(c.calvingHistory||[]),...b])].filter(Boolean).sort();c.calfRecords=calfRecords;c.lastCalving=[c.lastCalving,histLast].filter(Boolean).sort().at(-1)||'';c.calvingCount=Math.max(c.calvingCount||0,b.length);c.source='csv';if(csvExit){if(c.active!==false)exited++;c.active=false;c.exitDate=csvExit;c.exitReason=c.exitReason||'Sortie indiquée dans le CSV';c.exitOrigin='csv'}else if(c.exitOrigin!=='manual'){c.active=true;c.exitDate='';c.exitReason='';c.exitOrigin=''}updated++}
+   else{state.cows.push({id:rid,workNumber:work,name:r.name,birthDate:birth,breed:r.breed||'',lastCalving:histLast,calvingCount:b.length,calvingHistory:b,calfRecords,events:[],active:!csvExit,exitDate:csvExit,exitReason:csvExit?'Sortie indiquée dans le CSV':'',exitOrigin:csvExit?'csv':'',source:'csv',reproOverride:'',estiveActive:false,estiveSeason:'',currentLocationId:'',currentLocationName:''});added++}
  }
- const oldM=new Map(state.males.map(b=>[b.id,b])); const csvMales=records.filter(r=>r.Sexe==='M'&&!r['Date sortie']).map(r=>{const old=oldM.get(r['Identifiant bovin']);return {id:r['Identifiant bovin'],workNumber:old?.manualEdit?(old.workNumber||r['Numéro travail']):r['Numéro travail'],name:old?.manualEdit?(old.name||r.Nom):r.Nom,birthDate:dmyToIso(r['Date naissance']),activeBreeder:old?.activeBreeder||false,manualEdit:old?.manualEdit||false}}); const csvIds=new Set(csvMales.map(b=>b.id)); const manualMales=state.males.filter(b=>b.id?.startsWith('manual-')&&!csvIds.has(b.id)); state.males=[...csvMales,...manualMales];
- const underAge=state.cows.filter(c=>c.active!==false&&isUnderAge(c)&&c.reproOverride!=='include').length; state.meta={source:name,importedAt:dateISO(today()),lastImport:{added,updated,exited,manualKept,underAge}};save(); return {added,updated,exited,manualKept,underAge};
+ const oldM=new Map(state.males.map(b=>[registryIdKey(b.id),b]));const csvMales=records.filter(r=>String(r.sex).trim().toUpperCase()==='M'&&!dmyToIso(r.exit)).map(r=>{const old=oldM.get(registryIdKey(r.id));return {id:r.id,workNumber:old?.manualEdit?(old.workNumber||r.work):r.work,name:old?.manualEdit?(old.name||r.name):r.name,birthDate:dmyToIso(r.birth),activeBreeder:old?.activeBreeder||false,manualEdit:old?.manualEdit||false}});const csvIds=new Set(csvMales.map(b=>registryIdKey(b.id)));const manualMales=state.males.filter(b=>b.id?.startsWith('manual-')&&!csvIds.has(registryIdKey(b.id)));state.males=[...csvMales,...manualMales];
+ const underAge=state.cows.filter(c=>c.active!==false&&isUnderAge(c)&&c.reproOverride!=='include').length,cowsWith2=state.cows.filter(c=>allCalvingDates(c).length>=2).length,cowsWithHistory=state.cows.filter(c=>allCalvingDates(c).length>=1).length;
+ state.meta={source:name,importedAt:dateISO(today()),lastImport:{added,updated,exited,manualKept,underAge,linkedCalves,unlinkedCalves,cowsWithHistory,cowsWith2}};save();return {added,updated,exited,manualKept,underAge,linkedCalves,unlinkedCalves,cowsWithHistory,cowsWith2};
 }
 
 function exportBackup(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`repro-bovine-sauvegarde-${dateISO(today())}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
@@ -892,7 +915,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#closeEstiveBtn').onclick=()=>{if(confirm('Clôturer l’estive en cours ? Les vaches ne seront plus marquées en estive, mais leur historique de localisation restera conservé.')){const n=closeCurrentEstive();alert(`${n} vache(s) retirée(s) du statut estive.`)}};
  $('#addBullBtn').onclick=()=>openBullForm(); $('#bullForm').onsubmit=saveBullForm; $('#cancelBullTop').onclick=()=>$('#bullDialog').close(); $('#cancelBullBottom').onclick=()=>$('#bullDialog').close();
  $('#saveSettingsBtn').onclick=async()=>{Object.keys(DEFAULTS).forEach(k=>state.settings[k]=Math.max(0,Number($(`#set-${k}`).value)||0)); state.herdSettings={...HERD_DEFAULTS,...state.herdSettings,minFemaleAgeMonths:Math.max(0,Number($('#minFemaleAgeMonths')?.value)||0)}; state.notifications={...NOTIF_DEFAULTS,...state.notifications,enabled:$('#notif-enabled')?.checked??false,time:$('#notif-time')?.value||'07:00',heatReturn:$('#notif-heatReturn')?.checked??true,pregCheck:$('#notif-pregCheck')?.checked??true,precalving:$('#notif-precalving')?.checked??true,term:$('#notif-term')?.checked??true,postpartum:$('#notif-postpartum')?.checked??true}; localStorage.setItem(STORE,JSON.stringify(state));try{if(cloudSession&&navigator.onLine){await upsertCloudSettings();const sh=loadCloudShadow();if(sh){sh.settings=cloudSettingsPayload();localStorage.setItem(CLOUD_SHADOW_KEY,JSON.stringify(sh))}}}catch(err){console.error('Settings cloud save',err)}renderAll();scheduleCloudSync();alert(`Réglages enregistrés. Heure du récap : ${state.notifications.time}.`);}; $('#resetSettingsBtn').onclick=()=>{state.settings={...DEFAULTS};state.herdSettings={...HERD_DEFAULTS};state.notifications={...NOTIF_DEFAULTS};save()};
- $('#csvInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const r=importHerdCSV(await f.text(),f.name);alert(`Fusion CSV terminée.\n\n${r.added} nouvelle(s) vache(s)\n${r.updated} fiche(s) reconnue(s) et mise(s) à jour\n${r.exited} sortie(s) détectée(s)\n${r.manualKept} vache(s) ajoutée(s) manuellement conservée(s)\n${r.underAge} femelle(s) hors critère d’âge\n\nLes événements repro saisis dans l’application ont été conservés.`)}catch(err){alert('Import impossible : '+err.message)}e.target.value=''};
+ $('#csvInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const r=importHerdCSV(await f.text(),f.name);alert(`Fusion CSV terminée.\n\n${r.added} nouvelle(s) vache(s)\n${r.updated} fiche(s) reconnue(s) et mise(s) à jour\n${r.exited} sortie(s) détectée(s)\n${r.linkedCalves} veau(x) rattaché(s) à une mère\n${r.unlinkedCalves} veau(x) avec mère non reconnue\n${r.cowsWithHistory} vache(s) avec au moins 1 vêlage\n${r.cowsWith2} vache(s) avec au moins 2 vêlages → IVV réel calculable\n${r.manualKept} vache(s) ajoutée(s) manuellement conservée(s)\n${r.underAge} femelle(s) hors critère d’âge\n\nLes événements repro saisis dans l’application ont été conservés.`)}catch(err){alert('Import impossible : '+err.message)}e.target.value=''};
  $('#exportBtn').onclick=exportBackup; $('#restoreInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!x.cows||!x.settings)throw Error('format incorrect');state=normalizeState(x);save();alert('Sauvegarde restaurée.')}catch(err){alert('Restauration impossible : '+err.message)}e.target.value=''};
  $('#notifyBtn').onclick=requestNotifications;
  $$('#calendarMode button').forEach(b=>b.onclick=()=>{$$('#calendarMode button').forEach(x=>x.classList.remove('active'));b.classList.add('active');calMode=b.dataset.mode;renderCalendar()});

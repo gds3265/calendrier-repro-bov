@@ -1,3 +1,5 @@
+Repro Bovine v1.8.0 — correction robuste IVV réels + barre iPhone
+
 V1.7.9 : calcul de l’IVV théorique à partir de la dernière saillie/IA observée, affichage dans la fiche vache, filtre IVV longs, tri par IVV théorique et seuils de performance paramétrables/synchronisables (patch Supabase v1.7.9).
 V1.5.0 : tri des vaches par prochaine mise bas présumée et filtres du calendrier. Les alertes post-vêlage sans chaleur sont masquées du calendrier par défaut, mais restent disponibles via le filtre dédié.
 V1.4.8 : connexion/authentification refaite avec le client officiel Supabase JS v2 (CDN avec secours jsDelivr/unpkg). Test réseau indépendant du mot de passe.

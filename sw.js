@@ -1,4 +1,4 @@
-const CACHE='repro-bovine-v179';
+const CACHE='repro-bovine-v180';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./initial-data.js','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).catch(()=>{}));self.skipWaiting()});
 self.addEventListener('activate',event=>event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('repro-bovine')&&k!==CACHE).map(k=>caches.delete(k)));await self.clients.claim()})()));
